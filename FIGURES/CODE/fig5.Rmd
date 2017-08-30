@@ -1,0 +1,39 @@
+---
+output: pdf_document
+geometry: margin=0.25in, top=0.1in, left=0.2in, right=0.10in, paperheight=3.1in, paperwidth=2.5in
+header-includes:
+   - \usepackage{graphicx}
+   - \usepackage{helvet}
+   - \renewcommand{\familydefault}{\sfdefault}
+---
+
+<!-- Run Script to generate the individual PDFs that the latex script will combine -->
+```{r, eval=FALSE, show=FALSE, echo=FALSE}
+source("/Volumes/irizarryfs01/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankComparisonFigure.R")
+```
+
+<!--  create a multipanel figure with example regions for each method (long and short)
+one multipanel for each tissue comparison -->
+
+<!-- Right Ventricle_Sigmoid Colon -->
+\begin{picture}(82,100)
+
+\put(0,35){
+\vspace{-0.4in}\includegraphics[width=\textwidth, page=1]{/Volumes/irizarryfs01/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/ConcordantRanks_Left Ventricle_Small Intestine.pdf}\newline
+}
+
+\put(0,-40){
+\includegraphics[width=\textwidth, page=15]{/Volumes/irizarryfs01/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/DiscordantRanks_Avg_Right Ventricle_Sigmoid Colon.pdf}\newline
+}
+
+\put(0,-115){
+\includegraphics[width=\textwidth, page=3]{/Volumes/irizarryfs01/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/DiscordantRanks_Area_KO_FLT3WT_FLT3.pdf}\newline
+}
+
+
+\put(-10, 97.5){\footnotesize\textbf{(A)}}
+\put(-10,22.5){\footnotesize\textbf{(B)}}
+\put(-10,-52.5){\footnotesize\textbf{(C)}}
+
+\end{picture}
+\newpage

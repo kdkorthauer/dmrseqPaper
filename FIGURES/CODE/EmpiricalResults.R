@@ -396,7 +396,7 @@ for(cond in allConditions){
 	   theme_classic() +
 	   scale_x_sqrt(breaks=c(0,0.01,0.1,0.25,0.5,0.75,1)) +
 	   ylim(0.5, 4) +
-	   guides(linetype=FALSE)+
+	   guides(linetype=FALSE , colour = guide_legend(override.aes = list(linetype = c("dashed", "solid", "dashed", "solid"))))+
      scale_colour_colorblind() +
      scale_fill_colorblind()
   
@@ -933,7 +933,7 @@ for(cond in allConditions){
      theme_classic() +
      scale_x_sqrt(breaks=c(0,0.01,0.1,0.25,0.5,0.75,1)) +
      ylim(-0.3, 2.9) +
-     guides(linetype=FALSE)  +
+     guides(linetype=FALSE , colour = guide_legend(override.aes = list(linetype = c("dashed", "solid", "dashed", "solid"))))+
      scale_colour_colorblind() +
      scale_fill_colorblind()
   	  
@@ -1031,7 +1031,7 @@ p1 <- plot_grid( fdr[[1]] + theme(legend.position="none"),
 legend <- get_legend(fdr[[1]] + 
                 theme(legend.position="bottom", 
                 	  legend.title=element_text(size=14), 
-                	  legend.text=element_text(size=13)))
+                	  legend.text=element_text(size=13))) 
 top.title <- ggdraw() + draw_label("FDR versus odds of inverse DE association with Methylation", 
 							x=0.003, hjust=-0.37, fontface="bold", vjust=0.8)     
 top.title2 <- ggdraw() + draw_label("(B) Murine Leukemia Models", 

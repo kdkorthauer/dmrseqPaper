@@ -1,13 +1,26 @@
-# code to generate Figure 2, Figure 3, Supplementary Figures S3-S5
+# code to generate Figure 1b, Figure 2, Supplementary Figures S3-S5
 
-# source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/CODE/SimulationResults.R")
+# source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/CODE/SimulationResults.R")
 
-METHOD <- "dmrseq"
+######################################################
+### parameters to change to run on your own system ###
+######################################################
+# change the following the root results directory,
 outdir <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/"
+# change the following to represent the three dmrseq results folders: main, and the ones using the 
+# naive test statistics of average and area
 result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg/"
 naive.avg <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg_naive_avg/"
-naive.sum <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg_naive_sum/"
+naive.sum <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg_naive_area/"
+# change the following to where you'd like to save the figure output
+figure.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/out/"
+######################################################
+###         end of parameters to change            ###
+######################################################
 
+
+
+METHOD <- "dmrseq"
 num.dmrs <- 3000
 min.length <- max.length <- NULL
 cond <- "control"
@@ -242,7 +255,7 @@ for (sampleSize in allSampleSize){
 		geom_line(alpha=I(0.6)) +
 		geom_point(alpha=I(0.6), stroke=0) +
 		coord_cartesian(xlim=c(0,0.4), ylim=c(0,0.4)) +
-		ggtitle("FDR control by dmrseq") + 
+		ggtitle("(B) FDR control by dmrseq") + 
 		labs(x="Specified FDR level", y="Observed FDR level") +
 		scale_color_manual(values=c("#E69F00", "#0072B2")) +
 		labs(colour="Simulation") +
@@ -254,7 +267,7 @@ for (sampleSize in allSampleSize){
 }
 
 
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig4.pdf",
+pdf(paste0(figure.file.prefix, "/supp_fig4.pdf"),
   height=3, width=6.5)
   legend <- get_legend(rocs[[1]])
   print(plot_grid(rocs[[1]]+ theme(legend.position="none", 
@@ -267,7 +280,7 @@ pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig4
 dev.off()
 
 
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig5.pdf",
+pdf(paste0(figure.file.prefix, "/supp_fig5.pdf"),
   height=2.75, width=6.5)
   legend <- get_legend(rocs.n[[1]])
   print(plot_grid(rocs.n[[1]]+ theme(legend.position="none", 
@@ -279,12 +292,12 @@ pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig5
  
 dev.off()
 
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/fig2.pdf",
+pdf(paste0(figure.file.prefix , "/fig1b.pdf"),
   height=3, width=3.75)
 
   legend <- get_legend(p1m)
    
-  pfdr <- plot_grid(p1+ theme(legend.position="none", plot.title = element_text(hjust = -0.375, face="bold")), 
+  pfdr <- plot_grid(p1+ theme(legend.position="none", plot.title = element_text(hjust = 8, face="bold")), 
   					legend,
   				  nrow=1,
   				  rel_widths = c(1,0.3),
@@ -293,7 +306,7 @@ pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/fig2.pdf"
   print(pfdr)
 dev.off()		
 	
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig3.pdf",
+pdf(paste0(figure.file.prefix, "/supp_fig3.pdf"),
     height=3, width=3.75)
 
 legend <- get_legend(p1m)
@@ -312,34 +325,34 @@ dev.off()
 # print numbers of dmrs found by each method in the NULL comparisons: 
 
 message("dmrseq at 0.05 FDR:") 
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg/regions_control_2_0DMRs.RData")
+load(paste0(outdir, "/dmrseq_pkg/regions_control_2_0DMRs.RData"))
 message(paste0("Sample Size 2: ", sum(regions$qval <= 0.05)))
 rm(regions)
 
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg/regions_control_3_0DMRs.RData")
+load(paste0(outdir, "/dmrseq_pkg/regions_control_3_0DMRs.RData"))
 message(paste0("Sample Size 3: ", sum(regions$qval <= 0.05)))
 rm(regions)
 
 message("BSmooth with defaults:")
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/BSmooth_default/dmrs.BSmooth.n2.control.DEFAULT.Rdata")
+load(paste0(outdir, "/BSmooth_default/dmrs.BSmooth.n2.control.DEFAULT.Rdata"))
 message(paste0("Sample Size 2: ", nrow(dmrs)))
 
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/BSmooth_default/dmrs.BSmooth.n3.control.DEFAULT.Rdata")
+load(paste0(outdir, "/BSmooth_default/dmrs.BSmooth.n3.control.DEFAULT.Rdata"))
 message(paste0("Sample Size 3: ", nrow(dmrs)))
 
 message("DSS with defaults: ")
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/DSS_default/dmrs.DSS.n2.control.DEFAULT.Rdata")
+load(paste0(outdir, "/DSS_default/dmrs.DSS.n2.control.DEFAULT.Rdata"))
 message(paste0("Sample Size 2: ", nrow(dmrs)))
 
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/DSS_default/dmrs.DSS.n3.control.DEFAULT.Rdata")
+load(paste0(outdir, "/DSS_default/dmrs.DSS.n3.control.DEFAULT.Rdata"))
 message(paste0("Sample Size 3: ", nrow(dmrs)))
 
 message("metilene at 0.05 FDR:") 
-dmrs <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/metilene_default/metilene_output_control_n2_0DMRs.txt", stringsAsFactors=FALSE)
+dmrs <- read.table(paste0(outdir, "/metilene_default/metilene_output_control_n2_0DMRs.txt"), stringsAsFactors=FALSE)
 message(paste0("Sample Size 2: ", sum(dmrs$V4 <= 0.05)))
 rm(dmrs)
 
-dmrs <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/metilene_default/metilene_output_control_n3_0DMRs.txt", stringsAsFactors=FALSE)
+dmrs <- read.table(paste0(outdir, "/metilene_default/metilene_output_control_n3_0DMRs.txt"), stringsAsFactors=FALSE)
 message(paste0("Sample Size 3: ", sum(dmrs$V4 <= 0.05)))
 rm(dmrs)
 
@@ -349,12 +362,12 @@ permTab$Method <- "dmrseq"
 metTab <- metTab[,-which(grepl("level", colnames(metTab)))]
 metTab <- metTab[,c(1:5,7,6)]
 
-bsRows <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/BSmooth_default/PowerFDRtable.n2.control.3000DMRs.BSmooth.sim.txt", stringsAsFactors=FALSE,
+bsRows <- read.table(paste0(outdir, "/BSmooth_default/PowerFDRtable.n2.control.3000DMRs.BSmooth.sim.txt"), stringsAsFactors=FALSE,
 							 header=TRUE)
 bsRows$Method <- "BSmooth"
 bsRows$Sample.Size <- "D2"
 
-tmp <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/BSmooth_default/PowerFDRtable.n3.control.3000DMRs.BSmooth.sim.txt", stringsAsFactors=FALSE,
+tmp <- read.table(paste0(outdir, "/BSmooth_default/PowerFDRtable.n3.control.3000DMRs.BSmooth.sim.txt"), stringsAsFactors=FALSE,
 							 header=TRUE)
 tmp$Method <- "BSmooth"
 tmp$Sample.Size <- "D3"
@@ -363,13 +376,13 @@ bsRows <- rbind(bsRows[rownames(bsRows)=="0.025",], tmp[rownames(tmp)=="0.025",]
 
 # same for dss
 Qs <- as.character(c(1e-6, 1e-5, 1e-4, 0.00025, 0.001, 0.002, 0.01, 0.025, 0.05, 0.1))
-dsRows <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/DSS_default/PowerFDRtable.n2.control.3000DMRs.DSS.sim.txt", stringsAsFactors=FALSE,
+dsRows <- read.table(paste0(outdir, "/DSS_default/PowerFDRtable.n2.control.3000DMRs.DSS.sim.txt"), stringsAsFactors=FALSE,
 							 header=TRUE)
 dsRows$Method <- "DSS"
 dsRows$Sample.Size <- "D2"
 
 
-tmp <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/DSS_default/PowerFDRtable.n3.control.3000DMRs.DSS.sim.txt", stringsAsFactors=FALSE,
+tmp <- read.table(paste0(outdir, "/DSS_default/PowerFDRtable.n3.control.3000DMRs.DSS.sim.txt"), stringsAsFactors=FALSE,
 							 header=TRUE)
 tmp$Method <- "DSS"
 tmp$Sample.Size <- "D3"
@@ -418,7 +431,7 @@ d3 <- ggplot(data=permTab[permTab$Sample.Size=="D3",], aes(x=fdr, y=power,
 		plot.title = element_text(hjust = -0.4, face="bold")) +
   scale_colour_colorblind()
 			
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/fig3.pdf",
+pdf(paste0(figure.file.prefix, "/fig2.pdf"),
   height=3, width=6.5)
 
   legend <- get_legend(d2)

@@ -1,5 +1,25 @@
-# Code to generate Figure 4, Supplementary Figures S6-S9
+# Code to generate Figure 3, Supplementary Figures S6-S9
 
+# source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/CODE/EmpiricalResults_byWindow.R")
+
+# plots associations of expression with methylation broken up by type of window used to
+# overlap the DMRs with: promoter, islandshores (extended promoter regions), and 
+# gene body (cds plus 3 prime UTR plus 5 prime UTR)
+
+######################################################
+### parameters to change to run on your own system ###
+######################################################
+# change the following the dmrseq results directory - assumes dmrseq results 
+# are in a folder called 'dmrseq_pkg', and the directories for other methods 
+# are called 'BSmooth', 'DSS', and 'metilene'. 
+rm.result.dir <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/"
+# change the following to the dnmt3a results directory 
+dn.result.dir <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/"
+# change the following to where you'd like to save the figure output
+result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/out/"
+######################################################
+###         end of parameters to change            ###
+######################################################
 
 ##### Roadmap Results Plots
 library(ggplot2)
@@ -7,7 +27,8 @@ library(reshape2)
 library(cowplot)
 library(ggthemes)
 
-result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/dmrseq_pkg/"
+for(win in c("promoter", "genebody", "islandshore")){
+
 subfolder <- "odds_effectSize"
 sampleSize <- 2
 num.dmrs <- 0
@@ -25,21 +46,21 @@ labs <- c("A", "B", "C", "D", "E")
 for(cond in allConditions){
 
    # for plotting when calling dmrseq
-   pfile1 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
+   pfile1 <- list.files(path=paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/"),
 				   pattern=paste0("oddsByRanking.dmrseq.n", 
 					   sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   pfile2 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
-				   pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+   pfile2 <- list.files(path=paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/"),
+				   pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 
    if (length(pfile1[pfile1 %in% pfile2]) == 1){	   					 					
-	   pfile <- paste0(result.file.prefix, "/", subfolder, "/", 
+	   pfile <- paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/", 
 		 pfile1[pfile1 %in% pfile2])
    }else if (length(pfile1[pfile1 %in% pfile2]) > 1){	  #if > 1, pick most recently modified
 	   details <- file.info(pfile1[pfile1 %in% pfile2])
 	   details <- details[with(details, order(as.POSIXct(mtime), decreasing=TRUE)), ]
-	   pfile <- paste0(result.file.prefix, "/", subfolder, "/", rownames(details)[1])
+	   pfile <- paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/", rownames(details)[1])
 	   
 	   thisOne <- grep(nrow(dmrs), pfile1[pfile1 %in% pfile2])
-	   pfile <- paste0(result.file.prefix, "/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
+	   pfile <- paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
    }else{
 	  pfile <- "null"
    }
@@ -49,37 +70,37 @@ for(cond in allConditions){
    ranks.last$Method <- "dmrseq"  
 
  
-   bfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/", subfolder, "/"),
+   bfile1 <- list.files(path=paste0(rm.result.dir, "/BSmooth/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.BSmooth.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   bfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   bfile2 <- list.files(path=paste0(rm.result.dir, "/BSmooth/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(bfile1[bfile1 %in% bfile2]) == 1){	   					 					
-   bfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/", subfolder, "/", 
+   bfile <- paste0(rm.result.dir, "/BSmooth/", subfolder, "/", 
    		      bfile1[bfile1 %in% bfile2])
    }else{
    	  bfile <- "null"
    }
 
-   dfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", subfolder, "/"),
+   dfile1 <- list.files(path=paste0(rm.result.dir,"/DSS/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.DSS.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   dfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   dfile2 <- list.files(path=paste0(rm.result.dir, "/DSS/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win,  ".RData")) 		  
    if (length(dfile1[dfile1 %in% dfile2]) == 1){	   					 					
-   dfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", subfolder, "/", 
+   dfile <- paste0(rm.result.dir, "/DSS/", subfolder, "/", 
    		      dfile1[dfile1 %in% dfile2])
    }else{
    	  dfile <- "null"
    }
   
-   mfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene/", subfolder, "/"),
+   mfile1 <- list.files(path=paste0(rm.result.dir, "/metilene/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.metilene.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   mfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   mfile2 <- list.files(path=paste0(rm.result.dir, "/metilene/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(mfile1[mfile1 %in% mfile2]) == 1){	   					 					
-   mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene/", subfolder, "/", 
+   mfile <- paste0(rm.result.dir, "/metilene/", subfolder, "/", 
    		      mfile1[mfile1 %in% mfile2])
    }else{
    	  mfile <- "null"
@@ -152,31 +173,35 @@ for(cond in allConditions){
   
    ranks.all <- ranks.all[order(ranks.all$Method),]
    
-   odds[[ct]] <- ggplot(aes(x=log2(ranks), y=log2(odds)), 
+   odds[[ct]] <- ggplot(aes(x=ranks, y=odds), 
 						 data=ranks.all) + 
-	   geom_ribbon(aes(ymin=log2(CI.low), ymax=log2(CI.hi), fill=Method),
+	   geom_ribbon(aes(ymin=CI.low, ymax=CI.hi, fill=Method),
 			alpha=0.3) +
 	   geom_hline(yintercept=0, colour="grey", alpha=0.6, lwd=1.5, lty=2) +
 	   geom_line(aes(group=Method, color=Method), lwd=1.1) +
-	   xlab("Log2 Number of top-ranked DMRs") +
-	   ylab("Log2 odds") +
+	   xlab("Number of top-ranked DMRs") +
+	   ylab("Odds") +
 	   ggtitle("Odds of inverse DE association with Methylation") + 
 	   theme_classic()	+
      scale_colour_colorblind()+
-     scale_fill_colorblind()
+     scale_fill_colorblind() +
+     scale_x_continuous(trans="log2") +
+     scale_y_continuous(trans="log2")
   
-   covg[[ct]] <- ggplot(aes(x=log2(ranks), y=log2(nDML)), 
+   covg[[ct]] <- ggplot(aes(x=ranks, y=nDML), 
 						 data=ranks.all) + 
 	   geom_line(aes(group=Method, color=Method), lwd=1.1) +
 	   geom_point(aes(color=Method), size=2) +
-	   xlab("Log2 Number of top-ranked DMRs") +
-	   ylab("Log2 Number of CpG loci") +
+	   xlab("Number of top-ranked DMRs") +
+	   ylab("Number of CpG loci") +
 	   ggtitle("Number CpG Loci in top DMRs") + 
-	   geom_ribbon(aes(ymin=log2(nDML), ymax=log2(nDML), fill=Method),
+	   geom_ribbon(aes(ymin=nDML, ymax=nDML, fill=Method),
 				   alpha=0.3)+
 	   theme_classic()+
      scale_colour_colorblind()+
-     scale_fill_colorblind()
+     scale_fill_colorblind() +
+     scale_x_continuous(trans="log2") +
+     scale_y_continuous(trans="log2")
   
 	  
    DE.cats <- melt(ranks.all[,c(1,11:14,17)], id=c("ranks", "Method"))
@@ -190,7 +215,7 @@ for(cond in allConditions){
    DE.cats$CI.hi <-  DE.cats$value + 
 	   1.96 * sqrt(DE.cats$value*(1-DE.cats$value) / DE.cats$ranks)
 	  
-   near[[ct]] <-  ggplot(aes(x=log2(ranks), y=value), 
+   near[[ct]] <-  ggplot(aes(x=ranks, y=value), 
 	   data=DE.cats) + 
 	   geom_ribbon(aes(ymin=(CI.low), ymax=(CI.hi), fill=Method),
 			alpha=0.3) +
@@ -199,11 +224,12 @@ for(cond in allConditions){
 					lwd=1.1) +
 	   facet_wrap( ~ CpG_Category, ncol=2) +
 	   ylab("Proportion DMRs near a DE gene") +
-	   xlab("Log2 Number of Top-ranked DMRs") +
+	   xlab("Number of Top-ranked DMRs") +
 	   ggtitle("Proportion of DMRs near a DE gene") + 
 	   theme_classic() +
      scale_colour_colorblind()+
-     scale_fill_colorblind()
+     scale_fill_colorblind() +
+     scale_x_continuous(trans="log2")
 	
   labs[ct] <- paste0("(", labs[ct], ") ", gsub("_", " vs ", cond))
  	   
@@ -211,50 +237,50 @@ for(cond in allConditions){
   # correlation (supplementary results)
   # use up to top 10000 DMRs (or max number)
 
-  load(paste0(result.file.prefix, "/", subfolder, "/corrWithExpressionPlot.", 
+  load(paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/corrWithExpressionPlot.", 
 		 "dmrseq.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(10000, max(ranks.all$ranks[ranks.all$Method=="dmrseq"])), ".RData"))
+		  min(10000, max(ranks.all$ranks[ranks.all$Method=="dmrseq"])), ".", win, ".RData"))
   grob.dmrseq[[ct]] <- gp + xlab("Methylation difference (effect size)")
   
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/",
+  load(paste0(rm.result.dir, "/BSmooth/",
   		  subfolder, "/corrWithExpressionPlot.", 
 		 "BSmooth.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(10000, max(ranks.all$ranks[ranks.all$Method=="BSmooth"])), ".RData"))
+		  min(10000, max(ranks.all$ranks[ranks.all$Method=="BSmooth"])), ".", win, ".RData"))
   grob.bsmooth[[ct]] <- gp + xlab("Methylation difference (effect size)")
 		  
 		
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", 
+  load(paste0(rm.result.dir, "/DSS/", 
   		  subfolder, "/corrWithExpressionPlot.", 
 		 "DSS.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(10000, max(ranks.all$ranks[ranks.all$Method=="DSS"])), ".RData"))
+		  min(10000, max(ranks.all$ranks[ranks.all$Method=="DSS"])), ".", win, ".RData"))
   grob.dss[[ct]] <- gp + xlab("Methylation difference (effect size)")
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene/", 
+  load(paste0(rm.result.dir, "/metilene/", 
   		  subfolder, "/corrWithExpressionPlot.", 
 		 "metilene.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(10000, max(ranks.all$ranks[ranks.all$Method=="metilene"])), ".RData"))
+		  min(10000, max(ranks.all$ranks[ranks.all$Method=="metilene"])), ".", win, ".RData"))
   grob.met[[ct]] <- gp + xlab("Methylation difference (effect size)")
   
     ############################################################################
   # fdr rankings / default bsmooth/dss
   subfolder <-  "odds_fdr_Cumulative"
   
-  pfile1 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
+  pfile1 <- list.files(path=paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.dmrseq.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-  pfile2 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+  pfile2 <- list.files(path=paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 
   if (length(pfile1[pfile1 %in% pfile2]) == 1){	   					 					
-	  pfile <- paste0(result.file.prefix, "/", subfolder, "/", 
+	  pfile <- paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/", 
 		pfile1[pfile1 %in% pfile2])
   }else if (length(pfile1[pfile1 %in% pfile2]) > 1){	  #if > 1, pick most recently modified
 	  details <- file.info(pfile1[pfile1 %in% pfile2])
 	  details <- details[with(details, order(as.POSIXct(mtime), decreasing=TRUE)), ]
-	  pfile <- paste0(result.file.prefix, "/", subfolder, "/", rownames(details)[1])
+	  pfile <- paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/", rownames(details)[1])
 	  
 	  thisOne <- grep(nrow(dmrs), pfile1[pfile1 %in% pfile2])
-	  pfile <- paste0(result.file.prefix, "/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
+	  pfile <- paste0(rm.result.dir, "/dmrseq_pkg/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
   }else{
 	 pfile <- "null"
   }
@@ -265,25 +291,25 @@ for(cond in allConditions){
   fdrRanks <- rank.df$ranks
   ranks.all <- rank.df
   
-  mfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+  mfile1 <- list.files(path=paste0(rm.result.dir, "/metilene_default/",
   						subfolder, "/"),
    						pattern=paste0("oddsByRanking.metilene.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-  mfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+  mfile2 <- list.files(path=paste0(rm.result.dir, "/metilene_default/",
   				 		subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 
   if (length(mfile1[mfile1 %in% mfile2]) == 1){	   					 					
-	  mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+	  mfile <- paste0(rm.result.dir, "/metilene_default/",
 	    subfolder, "/", 
 		mfile1[mfile1 %in% mfile2])
   }else if (length(mfile1[mfile1 %in% mfile2]) > 1){	  #if > 1, pick most recently modified
 	  details <- file.info(mfile1[mfile1 %in% mfile2])
 	  details <- details[with(details, order(as.POSIXct(mtime), decreasing=TRUE)), ]
-	  mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+	  mfile <- paste0(rm.result.dir, "/metilene_default/",
 	  			 		subfolder, "/", rownames(details)[1])
 	  
 	  thisOne <- grep(nrow(dmrs), mfile1[mfile1 %in% mfile2])
-	  mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+	  mfile <- paste0(rm.result.dir, "/metilene_default/",
 	   					subfolder, "/", mfile1[mfile1 %in% mfile2][thisOne])
   }else{
 	 mfile <- "null"
@@ -297,25 +323,25 @@ for(cond in allConditions){
   
   subfolder <-  "odds_statistic_default"
    
-   bfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/", subfolder, "/"),
+   bfile1 <- list.files(path=paste0(rm.result.dir, "/BSmooth_default/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.BSmooth_default.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   bfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   bfile2 <- list.files(path=paste0(rm.result.dir, "/BSmooth_default/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(bfile1[bfile1 %in% bfile2]) == 1){	   					 					
-   bfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/", subfolder, "/", 
+   bfile <- paste0(rm.result.dir, "/BSmooth_default/", subfolder, "/", 
    		      bfile1[bfile1 %in% bfile2])
    }else{
    	  bfile <- "null"
    }
 
-   dfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/", subfolder, "/"),
+   dfile1 <- list.files(path=paste0(rm.result.dir, "/DSS_default/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.DSS_default.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   dfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   dfile2 <- list.files(path=paste0(rm.result.dir, "/DSS_default/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(dfile1[dfile1 %in% dfile2]) == 1){	   					 					
-   dfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/", subfolder, "/", 
+   dfile <- paste0(rm.result.dir, "/DSS_default/", subfolder, "/", 
    		      dfile1[dfile1 %in% dfile2])
    }else{
    	  dfile <- "null"
@@ -385,20 +411,21 @@ for(cond in allConditions){
    ranks.all$fdr <- as.factor(ranks.all$fdr)
    minx <- min(ranks.all$ranks)
       
-   fdr[[ct]] <- ggplot(aes(x=ranks, y=log2(odds)), 
+   fdr[[ct]] <- ggplot(aes(x=ranks, y=odds), 
 					 data=ranks.all) + 
-	   geom_ribbon(aes(ymin=log2(CI.low), ymax=log2(CI.hi), fill=Method),
+	   geom_ribbon(aes(ymin=CI.low, ymax=CI.hi, fill=Method),
 			alpha=0.3) +
 	   geom_line(aes(group=Method, color=Method, linetype=fdr), lwd=1.1) +
+	   scale_y_continuous(trans="log2", limits=c(2^-0.065, 2^3.2),
+	                      breaks=c(1,2,4,8,16)) +
 	   xlab("FDR threshold (square root scaled)") +
-	   ylab("log2 odds") +
+	   ylab("Odds") +
 	   ggtitle(substr(labs[ct], 5, nchar(labs[ct]))) + 
 	   theme_classic() +
 	   scale_x_sqrt(breaks=c(0,0.01,0.1,0.25,0.5,0.75,1)) +
-	   ylim(0.5, 4) +
-	   guides(linetype=FALSE , colour = guide_legend(override.aes = list(linetype = c("dashed", "solid", "dashed", "solid"))))+
+	   guides(linetype=FALSE)+
      scale_colour_colorblind() +
-     scale_fill_colorblind()
+     scale_fill_colorblind() 
   
   ct <- ct + 1
   subfolder <- "odds_effectSize"
@@ -441,7 +468,7 @@ legend <- get_legend(covg[[1]] +
 top.title <- ggdraw() + draw_label(paste0(labs[1]), x=0.003, hjust=0, 
 								fontface="bold")
 
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig6.pdf",
+pdf(paste0(result.file.prefix, "/supp_fig6.", win, ".pdf"),
   height=16, width=16)
 	p <- plot_grid( p1, p2, rel_widths = c(2,1.3), nrow=1)
 	p <- plot_grid( top.title, p, legend, nrow=3, rel_heights = c(0.02,1,0.025), hjust=0)
@@ -489,7 +516,7 @@ legend <- suppressMessages(get_legend(grob.dmrseq[[1]] +
 top.title <- ggdraw() + draw_label(paste0(labs[1]), 
 							x=0.003, hjust=-0.027, vjust=0.2, fontface="bold")
 				
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig7.pdf",
+pdf(paste0(result.file.prefix, "/supp_fig7.", win, ".pdf"), 
   height=18.333, width=17)
 	p <- plot_grid( top.title, p1, nrow=2, rel_heights = c(0.036,1))
 	p <- plot_grid( p, legend, rel_heights = c(3,0.06), nrow=2)
@@ -533,6 +560,8 @@ p <- plot_grid(top.title, p1, legend, rel_heights = c(0.2,3,0.06), nrow=3)
 
 p1.fdr.rm <- plot_grid(top.title2, p1, rel_heights = c(0.2,3), nrow=2) 
 
+}
+
 ############################################################################ 
 ############################################################################ 
 ############################################################################    
@@ -543,8 +572,8 @@ p1.fdr.rm <- plot_grid(top.title2, p1, rel_heights = c(0.2,3), nrow=2)
 ############################################################################ 
 ############################################################################ 
 
-result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/dmrseq_pkg/"
-subfolder <- "odds_effectSize"
+for(win in c("promoter", "genebody", "islandshore")){
+
 sampleSize <- 2
 num.dmrs <- 0
 min.length <- max.length <- NULL
@@ -559,23 +588,23 @@ grob.dmrseq <- grob.bsmooth <- grob.dss <- grob.met <- vector("list", length(all
 labs <- c("(A) AML vs Control", "(B) ALL vs Control", "(C) AML vs ALL")
 
 for(cond in allConditions){
-
+   subfolder <- "odds_effectSize"
    # for plotting when calling dmrseq
-   		pfile1 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
+   		pfile1 <- list.files(path=paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.dmrseq.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-  	 	pfile2 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+  	 	pfile2 <- list.files(path=paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 
    		if (length(pfile1[pfile1 %in% pfile2]) == 1){	   					 					
-   			pfile <- paste0(result.file.prefix, "/", subfolder, "/", 
+   			pfile <- paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/", 
    		      pfile1[pfile1 %in% pfile2])
 		}else if (length(pfile1[pfile1 %in% pfile2]) > 1){	  #if > 1, pick most recently modified
 			details <- file.info(pfile1[pfile1 %in% pfile2])
 			details <- details[with(details, order(as.POSIXct(mtime), decreasing=TRUE)), ]
-			pfile <- paste0(result.file.prefix, "/", subfolder, "/", rownames(details)[1])
+			pfile <- paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/", rownames(details)[1])
 			
 			thisOne <- grep(nrow(dmrs), pfile1[pfile1 %in% pfile2])
-			pfile <- paste0(result.file.prefix, "/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
+			pfile <- paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
 		}else{
 		   pfile <- "null"
 		}
@@ -585,37 +614,37 @@ for(cond in allConditions){
 		ranks.last$Method <- "dmrseq"  
 
  
-   bfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth/", subfolder, "/"),
+   bfile1 <- list.files(path=paste0(dn.result.dir, "/BSmooth/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.BSmooth.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   bfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   bfile2 <- list.files(path=paste0(dn.result.dir, "/BSmooth/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(bfile1[bfile1 %in% bfile2]) == 1){	   					 					
-   bfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth/", subfolder, "/", 
+   bfile <- paste0(dn.result.dir, "/BSmooth/", subfolder, "/", 
    		      bfile1[bfile1 %in% bfile2])
    }else{
    	  bfile <- "null"
    }
 
-   dfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS/", subfolder, "/"),
+   dfile1 <- list.files(path=paste0(dn.result.dir, "/DSS/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.DSS.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   dfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   dfile2 <- list.files(path=paste0(dn.result.dir, "/DSS/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(dfile1[dfile1 %in% dfile2]) == 1){	   					 					
-   dfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS/", subfolder, "/", 
+   dfile <- paste0(dn.result.dir, "/DSS/", subfolder, "/", 
    		      dfile1[dfile1 %in% dfile2])
    }else{
    	  dfile <- "null"
    }
    
-   mfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene/", subfolder, "/"),
+   mfile1 <- list.files(path=paste0(dn.result.dir, "/metilene/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.metilene.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   mfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   mfile2 <- list.files(path=paste0(dn.result.dir, "/metilene/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(mfile1[mfile1 %in% mfile2]) == 1){	   					 					
-   mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene/", subfolder, "/", 
+   mfile <- paste0(dn.result.dir, "/metilene/", subfolder, "/", 
    		      mfile1[mfile1 %in% mfile2])
    }else{
    	  mfile <- "null"
@@ -690,28 +719,31 @@ for(cond in allConditions){
   
    ranks.all <- ranks.all[order(ranks.all$Method),]
    
-   odds[[ct]] <- ggplot(aes(x=log2(ranks), y=log2(odds)), 
+   odds[[ct]] <- ggplot(aes(x=ranks, y=odds), 
 						 data=ranks.all) + 
-	   geom_ribbon(aes(ymin=log2(CI.low), ymax=log2(CI.hi), fill=Method),
+	   geom_ribbon(aes(ymin=(CI.low), ymax=(CI.hi), fill=Method),
 			alpha=0.3) +
 	   geom_hline(yintercept=0, colour="grey", alpha=0.6, lwd=1.5, lty=2) +
 	   geom_line(aes(group=Method, color=Method), lwd=1.1) +
-	   #geom_point(alpha=0.6, aes(color=Method)) +
-	   xlab("Log2 Number of top-ranked DMRs") +
-	   ylab("Log2 odds") +
+	   scale_y_continuous(trans="log2") +
+	   scale_x_continuous(trans="log2") +
+	   xlab("Number of top-ranked DMRs") +
+	   ylab("Odds") +
 	   ggtitle("Odds of inverse DE association with Methylation") + 
 	   theme_classic()		+
      scale_colour_colorblind()+
      scale_fill_colorblind()
   
-   covg[[ct]] <- ggplot(aes(x=log2(ranks), y=log2(nDML)), 
+   covg[[ct]] <- ggplot(aes(x=ranks, y=nDML), 
 						 data=ranks.all) + 
 	   geom_line(aes(group=Method, color=Method), lwd=1.1) +
 	   geom_point(aes(color=Method), size=2) +
-	   xlab("Log2 Number of top-ranked DMRs") +
-	   ylab("Log2 Number of CpG loci") +
+	   scale_y_continuous(trans="log2") +
+	   scale_x_continuous(trans="log2") +
+	   xlab("Number of top-ranked DMRs") +
+	   ylab("Number of CpG loci") +
 	   ggtitle("Number CpG Loci in top DMRs") + 
-	   geom_ribbon(aes(ymin=log2(nDML), ymax=log2(nDML), fill=Method),
+	   geom_ribbon(aes(ymin=nDML, ymax=nDML, fill=Method),
 				   alpha=0.3)+
 	   theme_classic()+
      scale_colour_colorblind()		+
@@ -729,69 +761,70 @@ for(cond in allConditions){
    DE.cats$CI.hi <-  DE.cats$value + 
 	   1.96 * sqrt(DE.cats$value*(1-DE.cats$value) / DE.cats$ranks)
 	  
-   near[[ct]] <-  ggplot(aes(x=log2(ranks), y=value), 
+   near[[ct]] <-  ggplot(aes(x=ranks, y=value), 
 	   data=DE.cats) + 
-	   geom_ribbon(aes(ymin=(CI.low), ymax=(CI.hi), fill=Method),
+	   geom_ribbon(aes(ymin=CI.low, ymax=CI.hi, fill=Method),
 			alpha=0.3) +
 	   geom_line(aes(color=Method,
 					group=interaction(CpG_Category,Method)), 
 					lwd=1.1) +
 	   facet_wrap( ~ CpG_Category, ncol=2) +
 	   ylab("Proportion DMRs near a DE gene") +
-	   xlab("Log2 Number of Top-ranked DMRs") +
+	   xlab("Number of Top-ranked DMRs") +
 	   ggtitle("Proportion of DMRs near a DE gene") + 
 	   theme_classic()+
      scale_colour_colorblind()+
-     scale_fill_colorblind()
+     scale_fill_colorblind() +
+	 scale_x_continuous(trans="log2") 
 	   
   ############################################################################ 
   # correlation (supplementary results)
   # use up to top 10000 DMRs (or max number)
 
-  load(paste0(result.file.prefix, "/", subfolder, "/corrWithExpressionPlot.", 
+  load(paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/corrWithExpressionPlot.", 
 		 "dmrseq.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(5000, max(ranks.all$ranks[ranks.all$Method=="dmrseq"])), ".RData"))
+		  min(5000, max(ranks.all$ranks[ranks.all$Method=="dmrseq"])), ".", win, ".RData"))
   grob.dmrseq[[ct]] <- gp + xlab("Methylation difference (effect size)")
   
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth/",
+  load(paste0(dn.result.dir, "/BSmooth/",
   		  subfolder, "/corrWithExpressionPlot.", 
 		 "BSmooth.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(5000, max(ranks.all$ranks[ranks.all$Method=="BSmooth"])), ".RData"))
+		  min(5000, max(ranks.all$ranks[ranks.all$Method=="BSmooth"])), ".", win, ".RData"))
   grob.bsmooth[[ct]] <- gp + xlab("Methylation difference (effect size)")
 		  
 		
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS/", 
+  load(paste0(dn.result.dir, "/DSS/", 
   		  subfolder, "/corrWithExpressionPlot.", 
 		 "DSS.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(5000, max(ranks.all$ranks[ranks.all$Method=="DSS"])), ".RData"))
+		  min(5000, max(ranks.all$ranks[ranks.all$Method=="DSS"])), ".", win, ".RData"))
   grob.dss[[ct]] <- gp + xlab("Methylation difference (effect size)")
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene/", 
+  load(paste0(dn.result.dir, "/metilene/", 
   		  subfolder, "/corrWithExpressionPlot.", 
 		 "metilene.n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", 
-		  min(5000, max(ranks.all$ranks[ranks.all$Method=="metilene"])), ".RData"))
+		  min(5000, max(ranks.all$ranks[ranks.all$Method=="metilene"])), ".", win, ".RData"))
   grob.met[[ct]] <- gp + xlab("Methylation difference (effect size)")
   
   ############################################################################
   # fdr rankings / default bsmooth/dss
   subfolder <-  "odds_fdr_Cumulative"
   
-  pfile1 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
+  pfile1 <- list.files(path=paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.dmrseq.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-  pfile2 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+  pfile2 <- list.files(path=paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 
   if (length(pfile1[pfile1 %in% pfile2]) == 1){	   					 					
-	  pfile <- paste0(result.file.prefix, "/", subfolder, "/", 
+	  pfile <- paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/", 
 		pfile1[pfile1 %in% pfile2])
   }else if (length(pfile1[pfile1 %in% pfile2]) > 1){	  #if > 1, pick most recently modified
 	  details <- file.info(pfile1[pfile1 %in% pfile2])
 	  details <- details[with(details, order(as.POSIXct(mtime), decreasing=TRUE)), ]
-	  pfile <- paste0(result.file.prefix, "/", subfolder, "/", rownames(details)[1])
+	  pfile <- paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/", rownames(details)[1])
 	  
 	  thisOne <- grep(nrow(dmrs), pfile1[pfile1 %in% pfile2])
-	  pfile <- paste0(result.file.prefix, "/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
+	  pfile <- paste0(dn.result.dir, "/dmrseq_pkg/", subfolder, "/", pfile1[pfile1 %in% pfile2][thisOne])
   }else{
 	 pfile <- "null"
   }
@@ -802,25 +835,25 @@ for(cond in allConditions){
   fdrRanks <- rank.df$ranks
   ranks.all <- rank.df
    
-   mfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene_default/",
+  mfile1 <- list.files(path=paste0(dn.result.dir, "/metilene_default/",
   						subfolder, "/"),
    						pattern=paste0("oddsByRanking.metilene.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-  mfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene_default/",
+  mfile2 <- list.files(path=paste0(dn.result.dir, "/metilene_default/",
   				 		subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 
   if (length(mfile1[mfile1 %in% mfile2]) == 1){	   					 					
-	  mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene_default/",
+	  mfile <- paste0(dn.result.dir, "/metilene_default/",
 	    subfolder, "/", 
 		mfile1[mfile1 %in% mfile2])
   }else if (length(mfile1[mfile1 %in% mfile2]) > 1){	  #if > 1, pick most recently modified
 	  details <- file.info(mfile1[mfile1 %in% mfile2])
 	  details <- details[with(details, order(as.POSIXct(mtime), decreasing=TRUE)), ]
-	  mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene_default/",
+	  mfile <- paste0(dn.result.dir, "/metilene_default/",
 	  			 		subfolder, "/", rownames(details)[1])
 	  
 	  thisOne <- grep(nrow(dmrs), mfile1[mfile1 %in% mfile2])
-	  mfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene_default/",
+	  mfile <- paste0(dn.result.dir, "/metilene_default/",
 	   					subfolder, "/", mfile1[mfile1 %in% mfile2][thisOne])
   }else{
 	 mfile <- "null"
@@ -834,25 +867,25 @@ for(cond in allConditions){
   
   subfolder <-  "odds_statistic_default"
    
-   bfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth_default/", subfolder, "/"),
+   bfile1 <- list.files(path=paste0(dn.result.dir, "/BSmooth_default/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.BSmooth_default.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   bfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth_default/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   bfile2 <- list.files(path=paste0(dn.result.dir, "/BSmooth_default/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(bfile1[bfile1 %in% bfile2]) == 1){	   					 					
-   bfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth_default/", subfolder, "/", 
+   bfile <- paste0(dn.result.dir, "/BSmooth_default/", subfolder, "/", 
    		      bfile1[bfile1 %in% bfile2])
    }else{
    	  bfile <- "null"
    }
 
-   dfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS_default/", subfolder, "/"),
+   dfile1 <- list.files(path=paste0(dn.result.dir, "/DSS_default/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.DSS_default.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   dfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS_default/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   dfile2 <- list.files(path=paste0(dn.result.dir, "/DSS_default/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", win, ".RData")) 		  
    if (length(dfile1[dfile1 %in% dfile2]) == 1){	   					 					
-   dfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS_default/", subfolder, "/", 
+   dfile <- paste0(dn.result.dir, "/DSS_default/", subfolder, "/", 
    		      dfile1[dfile1 %in% dfile2])
    }else{
    	  dfile <- "null"
@@ -921,24 +954,26 @@ for(cond in allConditions){
    ranks.all$fdr[ranks.all$Method %in% grad] <- 0
    ranks.all$fdr <- as.factor(ranks.all$fdr)
    minx <- min(ranks.all$ranks)
-      
-   fdr[[ct]] <- ggplot(aes(x=ranks, y=log2(odds)), 
+   
+   ll <- 2^-1
+   if (win=="genebody"){ ll <- 2^-0.5}   
+   fdr[[ct]] <- ggplot(aes(x=ranks, y=odds), 
                        data=ranks.all) + 
-     geom_ribbon(aes(ymin=log2(CI.low), ymax=log2(CI.hi), fill=Method),
+     geom_ribbon(aes(ymin=CI.low, ymax=CI.hi, fill=Method),
                  alpha=0.3) +
      geom_line(aes(group=Method, color=Method, linetype=fdr), lwd=1.1) +
      xlab("FDR threshold (square root scaled)") +
-     ylab("log2 odds") +
+     ylab("Odds") +
      ggtitle(substr(labs[ct], 5, nchar(labs[ct]))) + 
      theme_classic() +
      scale_x_sqrt(breaks=c(0,0.01,0.1,0.25,0.5,0.75,1)) +
-     ylim(-0.3, 2.9) +
-     guides(linetype=FALSE , colour = guide_legend(override.aes = list(linetype = c("dashed", "solid", "dashed", "solid"))))+
+     guides(linetype=FALSE)  +
      scale_colour_colorblind() +
-     scale_fill_colorblind()
+     scale_fill_colorblind() +
+     scale_y_continuous(trans="log2", limits=c(ll, 2^3),
+	                      breaks=c(0.5, 1,2,4,8,16)) 
   	  
   ct <- ct + 1
-  subfolder <- "odds_effectSize"
 }   			
 
  p1 <- plot_grid( odds[[1]] + theme(legend.position="none", axis.title.x=element_blank()), 
@@ -967,7 +1002,7 @@ legend <- get_legend(covg[[1]] +
                 	  legend.text=element_text(size=13)))
 top.title <- ggdraw() + draw_label(paste0(labs[1]), x=0.003, hjust=0, fontface="bold")
 
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig8.pdf",
+pdf(paste0(result.file.prefix, "/supp_fig8.", win, ".pdf"),
   height=9.6, width=16)
 	p <- plot_grid( p1, p2, rel_widths = c(2,1.3), nrow=1)
 	p <- plot_grid( top.title, p, legend, nrow=3, rel_heights = c(0.04,1,0.04), hjust=0)
@@ -1005,7 +1040,7 @@ legend <- suppressMessages(get_legend(grob.dmrseq[[1]] +
 top.title <- ggdraw() + draw_label(paste0(labs[1]), 
 							x=0.003, hjust=-0.027, vjust=0.2, fontface="bold")
 				
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/supp_fig9.pdf",
+pdf(paste0(result.file.prefix, "/supp_fig9.", win, ".pdf"),
   height=11, width=17)
 	p <- plot_grid( top.title, p1, nrow=2, rel_heights = c(0.05,1))
 	p <- plot_grid( p, legend, rel_heights = c(3,0.1), nrow=2)
@@ -1031,20 +1066,21 @@ p1 <- plot_grid( fdr[[1]] + theme(legend.position="none"),
 legend <- get_legend(fdr[[1]] + 
                 theme(legend.position="bottom", 
                 	  legend.title=element_text(size=14), 
-                	  legend.text=element_text(size=13))) 
+                	  legend.text=element_text(size=13)))
 top.title <- ggdraw() + draw_label("FDR versus odds of inverse DE association with Methylation", 
 							x=0.003, hjust=-0.37, fontface="bold", vjust=0.8)     
 top.title2 <- ggdraw() + draw_label("(B) Murine Leukemia Models", 
 							x=0.003, hjust=0, fontface="bold", vjust=0.8)            	  
 p <- plot_grid(top.title, p1, legend, rel_heights = c(0.2,1.5,0.06), nrow=3) 
 
-p.fdr.m <- plot_grid(top.title2, p1, legend, rel_heights = c(0.2,1.5,0.06), nrow=3) 
+p.fdr.m <- plot_grid(top.title2, p1, legend, rel_heights = c(0.2,1.5,0.12), nrow=3) 
 
 
 p1 <- plot_grid(p1.fdr.rm, p.fdr.m, nrow=2, rel_heights=c(7, 3.75))
 	          
-pdf("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/fig4.pdf",
+pdf(paste0(result.file.prefix, "/fig3.", win, ".pdf"),
   height=10.75, width=9)
 	print(p1)
 dev.off()   
    
+}

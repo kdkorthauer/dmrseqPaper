@@ -1,4 +1,25 @@
-# source("tracePlotComparisonFigure.R")
+# Code to generate intermediate files used to make 
+# Figure 5 (see 'fig4.Rmd' for code to produce Figure 4, which calls this script)
+# source("rankComparisonFigure.R")
+
+
+######################################################
+### parameters to change to run on your own system ###
+######################################################
+# change the following to represent the main results directory for Roadmap
+rm.result.dir <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/"
+# change the following to represent the Roadmap data directory
+rm.data.dir <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/"
+# change the following to represent the main results directory for DNMT3a
+dn.result.dir <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/"
+# change the following to represent the Roadmap data directory
+dn.data.dir <- "/n/irizarryfs01/kkorthauer/WGBS/DNMT3A/"
+
+# change the following to where you'd like to save the figure output
+figure.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/out/"
+######################################################
+###         end of parameters to change            ###
+######################################################
 
 ##### Roadmap Results Plots
 library(dmrseq)
@@ -7,7 +28,6 @@ library(dplyr)
 library(corrplot)
 library(viridis)
 
-result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/dmrseq_pkg/"
 sampleSize <- 2
 num.dmrs <- 0
 num.to.plot <- 1  #(how many top regions are plotted in the compPlots)
@@ -25,8 +45,6 @@ genomeName="hg38"
 time <- "roadmap"
 ord <- "stat"
 
-# location of bsseq data objects for each condition
-data.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/"
 
 for(cond in allConditions){
   
@@ -36,18 +54,27 @@ for(cond in allConditions){
   annot <- getAnnot(genomeName) 
   
   # construct bsseq object for this comparison
-  load(paste0(data.file.prefix, time, "_", tiss1, "_all_bsseq_id.RData")); show(bs)
-  bs_tiss1 <- bs
-  rm(bs); gc()
-  meta <- pData(bs_tiss1)
-  rownames(meta) <- meta$SampleNames
-  pData(bs_tiss1) <- meta
-  load(paste0(data.file.prefix, time, "_", tiss2, "_all_bsseq_id.RData")); show(bs)
-  meta <- pData(bs)
-  rownames(meta) <- meta$SampleNames
-  pData(bs) <- meta
-  bs <- bsseq::combine(bs, bs_tiss1)
-  rm(bs_tiss1); gc()
+  load(paste0(rm.data.dir, time, "_", tiss1, "_all_bsseq_id.RData")); show(bs)
+meta <- pData(bs)
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
+bs_tiss1 <- bs
+rm(bs); gc()
+rownames(meta) <- meta$SampleNames
+pData(bs_tiss1) <- meta
+load(paste0(rm.data.dir, time, "_", tiss2, "_all_bsseq_id.RData")); show(bs)
+meta <- pData(bs)
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
+rownames(meta) <- meta$SampleNames
+pData(bs) <- meta
+bs <- bsseq::combine(bs, bs_tiss1)
+rm(bs_tiss1); gc()
+
   
   sampleNames(bs) <- pData(bs)$SampleNames
   
@@ -159,14 +186,14 @@ for(cond in allConditions){
   pData(bs)$label <- paste0(pData(bs)[,testCovariate])
   
   # load DMR objects for each method
-  load(paste0(result.file.prefix, "/regions_", cond, "_", 
+  load(paste0(rm.result.dir, "/dmrseq_pkg/regions_", cond, "_", 
               sampleSize, "_", num.dmrs, "DMRs.RData"))
   
   dmrseq <- regions[regions$qval < pval.thresh & !is.na(regions$qval),]
   dmrseq.all <- regions
   rm(regions)
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/",
+  load(paste0(rm.result.dir, "/BSmooth_default/",
               "dmrs.BSmooth.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
   bsmooth <- dmrs
   bsmooth$stat <- bsmooth$areaStat 
@@ -175,7 +202,7 @@ for(cond in allConditions){
   bsmooth$indexEnd <- bsmooth$idxEnd
   bsmooth$L <- bsmooth$n
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/",
+  load(paste0(rm.result.dir, "/DSS_default/",
               "dmrs.DSS.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
   rm(dmlTest.sm)
   dss <- dmrs
@@ -186,7 +213,7 @@ for(cond in allConditions){
   dss$L <- dss$nCG
   rm(dmrs)
   
-  met <- read.table(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+  met <- read.table(paste0(rm.result.dir, "/metilene_default/",
                            "metilene_output_", gsub(" ", "_", cond), "_n", sampleSize, "_0DMRs.txt"), stringsAsFactors=FALSE)
   colnames(met) <- c("chr", "start", "end", "qval", "beta", "L", "pval1", 
                      "pval2", "mean1", "mean2")
@@ -247,6 +274,16 @@ for(cond in allConditions){
  
   # find an enriched set of regions that are given high ranking by other 
   # method(s) but have high(er) FDR by dmrseq
+  bsmooth.high <- dmrseq.common[(dmrseq.common$BSmooth.areaRank < 0.1 |
+                                 dmrseq.common$BSmooth.avgRank < 0.1) &
+                                 dmrseq.common$qval > 0.5, ]
+  dss.high <- dmrseq.common[(dmrseq.common$DSS.areaRank < 0.1 |
+                             dmrseq.common$DSS.avgRank < 0.1) &
+                             dmrseq.common$qval > 0.50, ]
+  met.high <- dmrseq.common[(dmrseq.common$Metilene.areaRank < 0.1 |
+                             dmrseq.common$Metilene.avgRank < 0.1 |
+                             dmrseq.common$Metilene.qvalRank < 0.05) &
+                             dmrseq.common$qval > 0.50, ]
   all.high <- dmrseq.common[dmrseq.common$BSmooth.areaRank < 0.1 &
                               dmrseq.common$DSS.areaRank < 0.1 &
                               dmrseq.common$Metilene.qvalRank < 0.1 &
@@ -260,6 +297,78 @@ for(cond in allConditions){
   
   
   # plot these guys
+  if (nrow(bsmooth.high)>0){
+    compareTrack <- GenomicRangesList(
+      dmrseq=makeGRangesFromDataFrame(bsmooth.high, keep.extra.columns=TRUE),
+      BSmooth=makeGRangesFromDataFrame(bsmooth.common[findOverlaps(makeGRangesFromDataFrame(bsmooth.common),
+                                                                   makeGRangesFromDataFrame(bsmooth.high))@from,],
+                                       keep.extra.columns=TRUE),
+      DSS=makeGRangesFromDataFrame(dss.common[findOverlaps(makeGRangesFromDataFrame(dss.common), 
+                                                           makeGRangesFromDataFrame(bsmooth.high))@from,],
+                                   keep.extra.columns=TRUE),
+      Metilene=makeGRangesFromDataFrame(met.common[findOverlaps(makeGRangesFromDataFrame(met.common), 
+                                                                makeGRangesFromDataFrame(bsmooth.high))@from,],
+                                        keep.extra.columns=TRUE))
+    
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
+               "DiscordantRanks_BSmooth_", cond, ".pdf"), width=6, height=3)
+    plotDMRs(bs, regions=bsmooth.high, 
+             extend=(bsmooth.high$end - bsmooth.high$start + 1)/2, 
+             addRegions=bsmooth.high, regionCol=NULL,
+             addPoints=TRUE, pointsMinCov=1, qval=FALSE,
+             stat=FALSE, includeYlab=TRUE, compareTrack=compareTrack,
+             labelCols=c("area.rank", "mean.rank",  "qval"))
+    dev.off()
+  }
+  
+  if (nrow(dss.high)>0){
+    compareTrack <- GenomicRangesList(
+      dmrseq=makeGRangesFromDataFrame(dss.high, keep.extra.columns=TRUE),
+      BSmooth=makeGRangesFromDataFrame(bsmooth.common[findOverlaps(makeGRangesFromDataFrame(bsmooth.common),
+                                                                   makeGRangesFromDataFrame(dss.high))@from,],
+                                       keep.extra.columns=TRUE),
+      DSS=makeGRangesFromDataFrame(dss.common[findOverlaps(makeGRangesFromDataFrame(dss.common), 
+                                                           makeGRangesFromDataFrame(dss.high))@from,],
+                                   keep.extra.columns=TRUE),
+      Metilene=makeGRangesFromDataFrame(met.common[findOverlaps(makeGRangesFromDataFrame(met.common), 
+                                                                makeGRangesFromDataFrame(dss.high))@from,],
+                                        keep.extra.columns=TRUE))
+    
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
+               "DiscordantRanks_DSS_", cond, ".pdf"), width=6, height=3)
+    plotDMRs(bs, regions=dss.high, 
+             extend=(dss.high$end - dss.high$start + 1)/2, 
+             addRegions=dss.high, regionCol=NULL,
+             addPoints=TRUE, pointsMinCov=1,qval=FALSE,
+             stat=FALSE, includeYlab=TRUE, compareTrack=compareTrack,
+             labelCols=c("area.rank", "mean.rank",  "qval"))
+    dev.off()
+  }
+  
+  if (nrow(met.high)>0){
+    compareTrack <- GenomicRangesList(
+      dmrseq=makeGRangesFromDataFrame(met.high, keep.extra.columns=TRUE),
+      BSmooth=makeGRangesFromDataFrame(bsmooth.common[findOverlaps(makeGRangesFromDataFrame(bsmooth.common),
+                                                                   makeGRangesFromDataFrame(met.high))@from,],
+                                       keep.extra.columns=TRUE),
+      DSS=makeGRangesFromDataFrame(dss.common[findOverlaps(makeGRangesFromDataFrame(dss.common), 
+                                                           makeGRangesFromDataFrame(met.high))@from,],
+                                   keep.extra.columns=TRUE),
+      Metilene=makeGRangesFromDataFrame(met.common[findOverlaps(makeGRangesFromDataFrame(met.common), 
+                                                                makeGRangesFromDataFrame(met.high))@from,],
+                                        keep.extra.columns=TRUE))
+    
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
+               "DiscordantRanks_Metilene_", cond, ".pdf"), width=6, height=3)
+    plotDMRs(bs, regions=met.high, 
+             extend=(met.high$end - met.high$start + 1)/2, 
+             addRegions=met.high, regionCol=NULL,
+             addPoints=TRUE, pointsMinCov=1,qval=FALSE,
+             stat=FALSE, includeYlab=TRUE, compareTrack=compareTrack,
+             labelCols=c("area.rank", "mean.rank",  "qval"))
+    dev.off()
+  }
+  
   if (nrow(all.high)>0){
     all.high <- all.high[1:min(nrow(all.high), 25),]
     compareTrack <- GenomicRangesList(
@@ -274,7 +383,7 @@ for(cond in allConditions){
                                                                 makeGRangesFromDataFrame(all.high))@from,],
                                         keep.extra.columns=TRUE))
     
-    pdf(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/",
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
                "ConcordantRanks_", cond, ".pdf"), width=6, height=3)
     plotDMRs(bs, regions=all.high, 
              extend=(all.high$end - all.high$start + 1)/2, 
@@ -298,7 +407,7 @@ for(cond in allConditions){
                                                                 makeGRangesFromDataFrame(avg.high))@from,],
                                         keep.extra.columns=TRUE))
     
-    pdf(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/",
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
                "DiscordantRanks_", "Avg_", cond, ".pdf"), width=6, height=3)
     plotDMRs(bs, regions=avg.high, 
              extend=(avg.high$end - avg.high$start + 1)/2, 
@@ -322,7 +431,7 @@ if (nrow(area.high)>0){
                                                               makeGRangesFromDataFrame(area.high))@from,],
                                       keep.extra.columns=TRUE))
   
-  pdf(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/",
+  pdf(paste0(figure.file.prefix, "/rankPlots/",
              "DiscordantRanks_", "Area_", cond, ".pdf"), width=6, height=3)
   plotDMRs(bs, regions=area.high, 
            extend=(area.high$end - area.high$start + 1)/2, 
@@ -340,7 +449,6 @@ if (nrow(area.high)>0){
 ############################################################################
 ############################################################################
 
-result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/dmrseq_pkg/"
 sampleSize <- 2
 num.dmrs <- 0
 num.to.plot <- 1  #(how many top regions are plotted in the compPlots)
@@ -357,7 +465,6 @@ genomeName="mm10"
 time <- "dnmt3a"
 
 # location of bsseq data objects for each condition
-data.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/DATA/"
 annot <- getAnnot(genomeName) 
 
 for(cond in allConditions){
@@ -366,7 +473,7 @@ for(cond in allConditions){
   tiss2 <- strsplit(cond, "\\.")[[1]][2]
   cond <- gsub("\\.", "", cond)
   
-  load(paste0(data.file.prefix, time, "_all_bsseq.RData"))
+  load(paste0(dn.data.dir, time, "_all_bsseq.RData"))
   
   print(pData(bs))
   
@@ -416,14 +523,14 @@ for(cond in allConditions){
   
   
   # load DMR objects for each method
-  load(paste0(result.file.prefix, "/regions_", cond, "_", 
+  load(paste0(dn.result.dir, "/dmrseq_pkg/regions_", cond, "_", 
               sampleSize, "_", num.dmrs, "DMRs.RData"))
   
   dmrseq <- regions[regions$qval < pval.thresh & !is.na(regions$qval),]
   dmrseq.all <- regions
   rm(regions)
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth_default/",
+  load(paste0(dn.result.dir, "/BSmooth_default/",
               "dmrs.BSmooth.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
   rm(bs.tstat)
   bsmooth <- dmrs
@@ -433,7 +540,7 @@ for(cond in allConditions){
   bsmooth$indexEnd <- bsmooth$idxEnd
   bsmooth$L <- bsmooth$n
   
-  load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS_default/",
+  load(paste0(dn.result.dir, "/RESULTS/DSS_default/",
               "dmrs.DSS.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
   rm(dmlTest.sm)
   dss <- dmrs
@@ -444,7 +551,7 @@ for(cond in allConditions){
   dss$L <- dss$nCG
   rm(dmrs)
   
-  met <- read.table(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/metilene_default/",
+  met <- read.table(paste0(dn.result.dir, "/metilene_default/",
                            "metilene_output_", gsub(" ", "_", cond), "_n", sampleSize, "_0DMRs.txt"), stringsAsFactors=FALSE)
   colnames(met) <- c("chr", "start", "end", "qval", "beta", "L", "pval1", 
                      "pval2", "mean1", "mean2")
@@ -562,6 +669,14 @@ for(cond in allConditions){
   
   # find an enriched set of regions that are given high ranking by other 
   # method(s) but have high(er) FDR by dmrseq
+  bsmooth.high <- dmrseq.common[(dmrseq.common$BSmooth.areaRank < 0.1 |
+                                   dmrseq.common$BSmooth.avgRank < 0.1) &
+                                  dmrseq.common$qval > 0.5, ]
+  dss.high <- dmrseq.common[(dmrseq.common$DSS.areaRank < 0.1 |
+                               dmrseq.common$DSS.avgRank < 0.1) &
+                              dmrseq.common$qval > 0.50, ]
+  met.high <- dmrseq.common[dmrseq.common$Metilene.qvalRank < 0.05 &
+                              dmrseq.common$qval > 0.50, ]
   all.high <- dmrseq.common[dmrseq.common$BSmooth.areaRank < 0.1 &
                               dmrseq.common$DSS.areaRank < 0.1 &
                               dmrseq.common$Metilene.qvalRank < 0.1 &
@@ -574,6 +689,78 @@ for(cond in allConditions){
                                 dmrseq.common$qval > 0.5), ]
   
   # plot these guys
+  if (nrow(bsmooth.high)>0){
+    compareTrack <- GenomicRangesList(
+      dmrseq=makeGRangesFromDataFrame(bsmooth.high, keep.extra.columns=TRUE),
+      BSmooth=makeGRangesFromDataFrame(bsmooth.common[findOverlaps(makeGRangesFromDataFrame(bsmooth.common),
+                                                                   makeGRangesFromDataFrame(bsmooth.high))@from,],
+                                       keep.extra.columns=TRUE),
+      DSS=makeGRangesFromDataFrame(dss.common[findOverlaps(makeGRangesFromDataFrame(dss.common), 
+                                                           makeGRangesFromDataFrame(bsmooth.high))@from,],
+                                   keep.extra.columns=TRUE),
+      Metilene=makeGRangesFromDataFrame(met.common[findOverlaps(makeGRangesFromDataFrame(met.common), 
+                                                                makeGRangesFromDataFrame(bsmooth.high))@from,],
+                                        keep.extra.columns=TRUE))
+    
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
+               "DiscordantRanks_BSmooth_", cond, ".pdf"), width=6, height=3)
+    plotDMRs(bs, regions=bsmooth.high, 
+             extend=(bsmooth.high$end - bsmooth.high$start + 1)/2, 
+             addRegions=bsmooth.high, regionCol=NULL,
+             addPoints=TRUE, pointsMinCov=1,qval=FALSE,
+             stat=FALSE, includeYlab=TRUE, compareTrack=compareTrack,
+             labelCols=c("area.rank", "mean.rank",  "qval"))
+    dev.off()
+  }
+  
+  if (nrow(dss.high)>0){
+    compareTrack <- GenomicRangesList(
+      dmrseq=makeGRangesFromDataFrame(dss.high, keep.extra.columns=TRUE),
+      BSmooth=makeGRangesFromDataFrame(bsmooth.common[findOverlaps(makeGRangesFromDataFrame(bsmooth.common),
+                                                                   makeGRangesFromDataFrame(dss.high))@from,],
+                                       keep.extra.columns=TRUE),
+      DSS=makeGRangesFromDataFrame(dss.common[findOverlaps(makeGRangesFromDataFrame(dss.common), 
+                                                           makeGRangesFromDataFrame(dss.high))@from,],
+                                   keep.extra.columns=TRUE),
+      Metilene=makeGRangesFromDataFrame(met.common[findOverlaps(makeGRangesFromDataFrame(met.common), 
+                                                                makeGRangesFromDataFrame(dss.high))@from,],
+                                        keep.extra.columns=TRUE))
+    
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
+               "DiscordantRanks_DSS_", cond, ".pdf"), width=6, height=3)
+    plotDMRs(bs, regions=dss.high, 
+             extend=(dss.high$end - dss.high$start + 1)/2, 
+             addRegions=dss.high, regionCol=NULL,
+             addPoints=TRUE, pointsMinCov=1,qval=FALSE,
+             stat=FALSE, includeYlab=TRUE, compareTrack=compareTrack,
+             labelCols=c("area.rank", "mean.rank",  "qval"))
+    dev.off()
+  }
+  
+  if (nrow(met.high)>0){
+    compareTrack <- GenomicRangesList(
+      dmrseq=makeGRangesFromDataFrame(met.high, keep.extra.columns=TRUE),
+      BSmooth=makeGRangesFromDataFrame(bsmooth.common[findOverlaps(makeGRangesFromDataFrame(bsmooth.common),
+                                                                   makeGRangesFromDataFrame(met.high))@from,],
+                                       keep.extra.columns=TRUE),
+      DSS=makeGRangesFromDataFrame(dss.common[findOverlaps(makeGRangesFromDataFrame(dss.common), 
+                                                           makeGRangesFromDataFrame(met.high))@from,],
+                                   keep.extra.columns=TRUE),
+      Metilene=makeGRangesFromDataFrame(met.common[findOverlaps(makeGRangesFromDataFrame(met.common), 
+                                                                makeGRangesFromDataFrame(met.high))@from,],
+                                        keep.extra.columns=TRUE))
+    
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
+               "DiscordantRanks_Metilene_", cond, ".pdf"), width=6, height=3)
+    plotDMRs(bs, regions=met.high, 
+             extend=(met.high$end - met.high$start + 1)/2, 
+             addRegions=met.high, regionCol=NULL,
+             addPoints=TRUE, pointsMinCov=1,qval=FALSE,
+             stat=FALSE, includeYlab=TRUE, compareTrack=compareTrack,
+             labelCols=c("area.rank", "mean.rank",  "qval"))
+    dev.off()
+  }
+  
   if (nrow(all.high)>0){
     all.high <- all.high[1:min(nrow(all.high), 25),]
     compareTrack <- GenomicRangesList(
@@ -588,7 +775,7 @@ for(cond in allConditions){
                                                                 makeGRangesFromDataFrame(all.high))@from,],
                                         keep.extra.columns=TRUE))
     
-    pdf(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/",
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
                "ConcordantRanks_", cond, ".pdf"), width=6, height=3)
     plotDMRs(bs, regions=all.high, 
              extend=(all.high$end - all.high$start + 1)/2, 
@@ -612,7 +799,7 @@ for(cond in allConditions){
                                                                 makeGRangesFromDataFrame(avg.high))@from,],
                                         keep.extra.columns=TRUE))
     
-    pdf(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/",
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
                "DiscordantRanks_", "Avg_", cond, ".pdf"), width=6, height=3)
     plotDMRs(bs, regions=avg.high, 
              extend=(avg.high$end - avg.high$start + 1)/2, 
@@ -636,7 +823,7 @@ for(cond in allConditions){
                                                                 makeGRangesFromDataFrame(area.high))@from,],
                                         keep.extra.columns=TRUE))
     
-    pdf(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/rankPlots/",
+    pdf(paste0(figure.file.prefix, "/rankPlots/",
                "DiscordantRanks_", "Area_", cond, ".pdf"), width=6, height=3)
     plotDMRs(bs, regions=area.high, 
              extend=(area.high$end - area.high$start + 1)/2, 

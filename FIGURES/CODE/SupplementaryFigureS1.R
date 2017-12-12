@@ -1,8 +1,22 @@
 # Code to generate Supplementary Figure S1
 # To compare AR(1) with CAR(1)
 
-# Simulation D2 (because then can evaluate sens & spec)
-setwd("/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/")
+# Uses simulation D2 (because then can evaluate sens & spec)
+
+######################################################
+### parameters to change to run on your own system ###
+######################################################
+# change the following to represent the dmrseq results folder for dendritic
+result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg/"
+# change the following to represent the simulated data directory
+data.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/binSim/"
+# change the following to where you'd like to save the figure output
+figure.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/out/"
+# change the following to represent how many cores to use; otherwise will assume slurm system variable
+#workers <- 1
+######################################################
+###         end of parameters to change            ###
+######################################################
 
 # load necessary packages and region stat function (internal to dmrseq)
 library(dmrseq)
@@ -10,139 +24,17 @@ library(nlme)
 library(reshape2)
 library(outliers)
 
-asin.gls.cov <- function(ix, design, coeff,
-                           correlation=corAR1(form = ~ 1 | sample),
-                           correlationSmall=corCAR1(form = ~ L | sample),
-                           weights=varPower(form=~1/MedCov, fixed=0.5)){
-    sampleSize <- nrow(design)/2
-    dat <- data.frame(
-      g.fac=factor(as.vector(sapply(design[,coeff], 
-                                    function(x) rep(x,length(ix))))),
-      sample=factor(as.vector(sapply(1:(sampleSize*2), 
-                                     function(x) rep(x,length(ix))))),
-      meth=melt(meth.mat[ix,])$value,
-      cov=melt(cov.mat[ix,])$value,
-      L = as.vector(rep(pos[ix], nrow(design)))
-    )
-    
-    # condition to remove regions with constant methylation / unmeth values
-    if ( ! ((length(unique(dat$meth)) == 1 & dat$meth[1] == 0) |
-            (length(unique(dat$cov-dat$meth)) == 1 & 
-             (dat$cov-dat$meth)[1] == 0)) ){ 
-      
-      dat$pos <- as.numeric(factor(dat$L))   				
-      X <- model.matrix( ~ dat$g.fac )
-      colnames(X)[2] <- "grp"
-      
-      if(nrow(X) <= ncol(X))
-        stop(paste0("Not enough degree of freedom to fit the linear ",
-                    "model. Drop some terms in formula"))
-      
-      Y <- as.matrix(dat$meth)
-      N <- as.matrix(dat$cov)
-      
-      dat$MedCov <- rep(as.numeric(by(dat$cov, dat$pos, median)), sampleSize*2)
-      
-      # tol is the convergence criteria (for difference Between two
-      # iterations of the dispersion parameter estimate
-      
-      ## small constants to bound p and phi
-      # pick this such that min value of z[m>0] 
-      # is greater than all values of z[m==0]
-      c0 = 0.05
-      c1 = 0.001
-      
-      ## check to make sure data is complete
-      ixn <- N > 0
-      if(mean(ixn) < 1) { ## has missing entries
-        X <- X[ixn,,drop=FALSE]
-        Y <- Y[ixn]
-        N <- N[ixn]
-        ## check design
-        if(nrow(X) < ncol(X) + 1) ## not enough df for regression
-          return(NULL)
-        ## design is not of full rank because of missing. Skip
-        if(any(abs(svd(X)$d) <1e-8)) 
-          return(NULL)
-      }
-      
-      ## Transform the methylation levels. 
-      #Add a small constant to bound away from 0/1.
-      dat$Z = asin(2*(Y+c0)/(N+2*c0) - 1) 
-      
-      #Add a tiny amt of jitter to avoid numerically constant Z vals
-      # across a sample over the entire region
-      if (max(table(dat$Z, dat$sample)) >= length(ix)-1){
-        dat$Z = asin(2*(Y+c0)/(N+2*c0) - 1) + 
-          runif(length(Y), -c1, c1)
-      }
-      
-      
-      if (length(ix) >= 40){
-        fit <- tryCatch({summary(gls(Z ~ g.fac + factor(L), 
-                                     weights=weights,
-                                     data=dat, 
-                                     correlation=correlation))},
-                        error=function(e) { return(NA)})
-      }else{
-        # check for presence of 1-2 coverage outliers that could end up driving
-        # the difference between the groups
-        if (length(unique(dat$MedCov[1:length(ix)])) > 1 & length(ix) <= 10 ){
-          grubbs.one <- suppressWarnings(
-              grubbs.test(dat$MedCov[1:length(ix)])$p.value)
-          grubbs.two <- suppressWarnings(
-              grubbs.test(dat$MedCov[1:length(ix)], type=20)$p.value)
-        }else{
-          grubbs.one <- grubbs.two <- 1
-        }
-        
-        if (grubbs.one < 0.01 | grubbs.two < 0.01){
-          weights = varIdent(form = ~ 1)
-        }
-        
-        fit <- tryCatch({summary(gls(Z ~ g.fac + factor(L),
-                                     weights=weights,
-                                     data=dat,
-                                     correlation=correlationSmall))},
-                        error=function(e) { return(NA)})
-        
-        # error handling in case of false convergence (don't
-        # include first variance weighting, and then corr str)
-        if (sum(is.na(fit)) == length(fit)){
-          fit <- tryCatch({summary(gls(Z ~ g.fac + factor(L),
-                                       data=dat,
-                                       correlation=correlationSmall))},
-                          error=function(e) { return(NA)})
-          if (sum(is.na(fit)) == length(fit)){
-            fit <- tryCatch({summary(gls(Z ~ g.fac + factor(L),
-                                         data=dat))},
-                            error=function(e) { return(NA)})
-          }
-        }
-      }
-      
-      if (!(sum(is.na(fit)) == length(fit))){
-        stat <- fit$tTable[2,3]
-        beta <- fit$tTable[2,1]
-      }else{
-        stat <- beta <- NA
-      }
-      
-      return(data.frame(beta=beta,stat=stat))
-    }else{
-      return(NULL)
-    }
-}
-
-data.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/binSim/" 
-
-result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/dmrseq_pkg"
 
 sampleSize=2 
 num.dmrs=3000 
 cond="control"
 
-workers <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+slurmtasks <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+if (!exists("workers") & !is.na(slurmtasks)){
+  workers <- slurmtasks
+}else{
+  workers <- 1 
+} 
 # register cores with #workers
 library("BiocParallel")
 register(MulticoreParam(workers))
@@ -182,6 +74,146 @@ for (r in 1:length(Indexes)){
 	Indexes[[r]] <- regions$indexStart[r]:regions$indexEnd[r]
 }   
 
+# internal dmrseq function to obtain region test statistics
+asin.gls.cov <- function(ix, design, coeff, correlation = corAR1(form = ~1 |
+        sample), correlationSmall = corCAR1(form = ~L | sample), 
+        weights = varPower(form = ~1/MedCov, 
+        fixed = 0.5)) {
+        sampleSize <- nrow(design)/2
+        dat <- data.frame(g.fac = factor(as.vector(sapply(design[, coeff], 
+                                                          function(x) rep(x, 
+            length(ix))))), sample = factor(as.vector(sapply(1:(sampleSize * 2),
+            function(x) rep(x, length(ix))))), 
+            meth = melt(meth.mat[ix, ])$value,
+            cov = melt(cov.mat[ix, ])$value, L = as.vector(rep(pos[ix], 
+                                                               nrow(design))))
+        
+        # condition to remove regions with constant methylation / unmeth values
+        if (!((length(unique(dat$meth)) == 1 & dat$meth[1] == 0) | 
+              (length(unique(dat$cov - 
+            dat$meth)) == 1 & (dat$cov - dat$meth)[1] == 0))) {
+            
+            dat$pos <- as.numeric(factor(dat$L))
+            X <- model.matrix(~dat$g.fac)
+            colnames(X)[2] <- "grp"
+            
+            if (nrow(X) <= ncol(X)){
+                message("Not enough degree of freedom to fit the linear ", 
+                            "model. Drop some terms in formula")
+                return(data.frame(beta = NA, stat = NA, constant = FALSE))
+            }
+            
+            Y <- as.matrix(dat$meth)
+            N <- as.matrix(dat$cov)
+            
+            dat$MedCov <- rep(as.numeric(by(dat$cov, dat$pos, median)), 
+                              sampleSize * 2)
+            # remove rows with zero coverage
+            whichZ <- which(dat$cov==0)
+            if (length(whichZ)>0){
+              dat <- dat[-whichZ,]
+            }
+            
+            # tol is the convergence criteria (for difference Between two 
+            # iterations of the dispersion parameter estimate
+            
+            ## small constants to bound p and phi pick this such that min value
+            ##  of z[m>0] is greater than all values of z[m==0]
+            c0 <- 0.05
+            c1 <- 0.001
+            
+            ## check to make sure data is complete
+            ixn <- N > 0
+            if (mean(ixn) < 1) {
+                ## has missing entries
+                X <- X[ixn, , drop = FALSE]
+                Y <- Y[ixn]
+                N <- N[ixn]
+                ## check design not enough df for regression
+                if (nrow(X) < ncol(X) + 1) 
+                  return(data.frame(beta = NA, stat = NA, constant = FALSE))
+                ## design is not of full rank because of missing. Skip
+                if (any(abs(svd(X)$d) < 1e-08)) 
+                  return(data.frame(beta = NA, stat = NA, constant = FALSE))
+            }
+            
+            ## Transform the methylation levels.  Add a small constant to bound 
+            ## away from 0/1.
+            dat$Z <- asin(2 * (Y + c0)/(N + 2 * c0) - 1)
+            
+            # Add a tiny amt of jitter to avoid numerically constant Z vals 
+            # across a sample over the entire region
+            if (max(table(dat$Z, dat$sample)) >= length(ix) - 1) {
+                dat$Z <- asin(2 * (Y + c0)/(N + 2 * c0) - 1) + 
+                  runif(length(Y), -c1, c1)
+            }
+            
+            
+            if (length(ix) >= 40) {
+                fit <- tryCatch({
+                  summary(gls(Z ~ g.fac + factor(L), weights = weights, 
+                              data = dat, correlation = correlation))
+                }, error = function(e) {
+                  return(NA)
+                })
+            } else {
+                # check for presence of 1-2 coverage outliers that could end up
+                # driving the difference between the groups
+                if (length(unique(dat$MedCov[1:length(ix)])) > 1 & length(ix) <=
+                  10) {
+                  grubbs.one <- suppressWarnings(grubbs.test(
+                    dat$MedCov[1:length(ix)])$p.value)
+                  grubbs.two <- suppressWarnings(
+                    grubbs.test(dat$MedCov[1:length(ix)], 
+                    type = 20)$p.value)
+                } else {
+                  grubbs.one <- grubbs.two <- 1
+                }
+                
+                if (grubbs.one < 0.01 | grubbs.two < 0.01) {
+                  weights <- varIdent(form = ~1)
+                }
+                
+                fit <- tryCatch({
+                  summary(gls(Z ~ g.fac + factor(L), weights = weights,
+                              data = dat, correlation = correlationSmall))
+                }, error = function(e) {
+                  return(NA)
+                })
+                
+                # error handling in case of false convergence (don't include 
+                # first variance weighting, and then corr str)
+                if (sum(is.na(fit)) == length(fit)) {
+                  fit <- tryCatch({
+                    summary(gls(Z ~ g.fac + factor(L), data = dat, 
+                                correlation = correlationSmall))
+                  }, error = function(e) {
+                    return(NA)
+                  })
+                  if (sum(is.na(fit)) == length(fit)) {
+                    fit <- tryCatch({
+                      summary(gls(Z ~ g.fac + factor(L), data = dat))
+                    }, error = function(e) {
+                      return(NA)
+                    })
+                  }
+                }
+            }
+            
+            if (!(sum(is.na(fit)) == length(fit))) {
+                stat <- fit$tTable[2, 3]
+                beta <- fit$tTable[2, 1]
+            } else {
+                stat <- beta <- NA
+            }
+            
+            return(data.frame(beta = beta, stat = stat, constant = FALSE))
+        } else {
+            return(data.frame(beta = NA, stat = NA, constant = TRUE))
+        }
+    }
+    
+
 if (!file.exists("corstructure_comparison.rda")){
   ar1 <- do.call("rbind", bplapply(Indexes, function(Index)
 		asin.gls.cov(ix=ind[Index],design=design,coeff=coeff,
@@ -205,7 +237,7 @@ regions$stat.CAR1 <- car1$stat
 regions$stat.diff <- regions$stat.AR1-regions$stat.CAR1
 regions$width <- regions$end-regions$start + 1
 
-pdf("supp_fig1.pdf")
+pdf(paste0(figure.file.prefix, "/supp_fig1.pdf"))
 p1 <- ggplot(regions, aes(x=L, y=stat.diff)) +
     xlim(c(5,100)) +
     ylim(c(-10,10)) +

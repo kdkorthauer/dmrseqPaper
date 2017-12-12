@@ -1,19 +1,42 @@
 #!/bin/bash
-#SBATCH -N 1 #Number of nodes
-#SBATCH --mail-type=ALL      #Type of email notification- BEGIN,END,FAIL,ALL
-#SBATCH --mail-user=kdkorthauer@gmail.com  #Email to which notifications will be sent
-#SBATCH --job-name=bedToBam
-#SBATCH -e /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/ROADMAP/SlurmErr/bedToBam.err.txt
-#SBATCH -o /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/ROADMAP/SlurmOut/bedToBam.out.txt
-#SBATCH -t 1000 
-#SBATCH --mem 150000
-#SBATCH -p irizarry
-#SBATCH -n 8
 
+######################################################
+### parameters to change to run on your own system ###
+######################################################
+# change the following to the root directory you'd like to download the RNAseq data on your system
+export DATDIR='/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/RNAseq/'
+# change the following to where you'd like to save the reference genome assembly on your system
+export REFDIR='/n/irizarryfs01/kkorthauer/ReferenceGenomes/human/'
+# change the following the number of cores to use
+export CORES=8
+######################################################
+###         end of parameters to change            ###
+######################################################
+
+SCRIPTDIR=$PWD
+cd $DATDIR
+
+# first download the bed file data from the selected tissue types from SRP000941(ftp address ftp://ftp.ncbi.nlm.nih.gov/pub/geo/DATA/roadmapepigenomics/) 
+
+wget 'ftp://ftp.ncbi.nlm.nih.gov/pub/geo/DATA/roadmapepigenomics/by_experiment/mRNA-Seq/heart_left_ventricle/*.bed.gz'
+wget 'ftp://ftp.ncbi.nlm.nih.gov/pub/geo/DATA/roadmapepigenomics/by_experiment/mRNA-Seq/heart_right_ventricle/*.bed.gz'
+wget 'ftp://ftp.ncbi.nlm.nih.gov/pub/geo/DATA/roadmapepigenomics/by_experiment/mRNA-Seq/small_intestine/*.bed.gz'
+wget 'ftp://ftp.ncbi.nlm.nih.gov/pub/geo/DATA/roadmapepigenomics/by_experiment/mRNA-Seq/sigmoid_colon/*.bed.gz'
+
+# unzip the files
+gunzip *gz 
+
+# download the genome annotation files
+cd $REFDIR
+wget 'ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_19/gencode.v19.chr_patch_hapl_scaff.annotation.gtf.gz'
+
+# unzip the file
+gunzip *gz 
+
+# remove the following if you don't use a module system and (if necessary) specify the path of bedtools on your system
 module load bedtools
 
-cd /n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/RNAseq/
-
+cd $DATDIR
 for f in *.bed.gz
 do    
   outfile=$f\.bam 
@@ -36,7 +59,7 @@ do
   if [[ ! -e $outfile ]];
   then
 	echo "counting features of - $fout"
-	featureCounts -T 8 -g gene_id -a /n/irizarryfs01_backed_up/kkorthauer/ReferenceGenomes/human/gencode.v19.chr_patch_hapl_scaff.annotation.gtf -o $outfile $f
+	featureCounts -T $CORES -g gene_id -a $REFDIR/gencode.v19.chr_patch_hapl_scaff.annotation.gtf -o $outfile $f
   else
   	echo "count file $outfile already exists"
   fi
@@ -45,7 +68,8 @@ done
 
 # R analysis
 cat <<EOT >> combineCounts.R
-setwd("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/RNAseq/");
+dat.dir <- Sys.getenv("DATDIR")
+setwd(paste0(dat.dir));
 # list all files that have "UCSD" in the name and end in ".counts.txt";
 # but do not contain ".summary" ;
 count.files <- list.files(path = ".", pattern = "UCSD");

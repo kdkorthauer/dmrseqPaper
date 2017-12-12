@@ -6,3 +6,6 @@
 *.Rbuildignore
 vignettes/dmrseq_cache/*
 FIGURES/out/*
+FIGURES/Slurm/*
+FIGURES/old/*
+old/*

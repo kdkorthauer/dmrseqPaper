@@ -1,10 +1,28 @@
 # generate summary figures and data for summary table
-# to give main summary/data description
+# to give main summary/data description (Supp fig s2)
+
+######################################################
+### parameters to change to run on your own system ###
+######################################################
+# change the following to you would like to save figures
+result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/out/"
+# change the following to where the roadmap data is stored 
+rmdata.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/"
+# change the following to where the dendritic data is stored 
+ddata.file.prefix <- "/n/irizarryfs01/kkorthauer/WGBS/DENDRITIC/DATA/"
+# change the following to where the simulated dendritic data is stored 
+sim.dir.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/binSim/"
+# change the following to where the dnmt3a data is stored 
+mdata.file.prefix <- "/n/irizarryfs01/kkorthauer/WGBS/DNMT3A/"
+######################################################
+###         end of parameters to change            ###
+######################################################
+
+
 library(bsseq)
 library(ggplot2)
 library(reshape2)
 library(cowplot)
-result.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/dmrseqPaper/FIGURES/out/"
 
 plotBetaDistribution <- function(bs, main=""){
 
@@ -141,7 +159,7 @@ plotBetaDistribution <- function(bs, main=""){
 }
 
 getCoverageStats <- function(bs){
-	cov.mat <- getCoverage(bs, type = "Cov")
+	cov.mat <- as.matrix(getCoverage(bs, type = "Cov"))
 	med.cov <- apply(cov.mat, 2, median)
 	max.cov <- apply(cov.mat, 2, max)
 	return(list(med.cov, max.cov))
@@ -152,39 +170,53 @@ getCoverageStats <- function(bs){
 summary.table <- vector("list", 6)
 
 # Roadmap data - 4 tissues
-data.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/"
 
-	 
 # Left Ventricle
-load(paste0(data.file.prefix, "roadmap_Left Ventricle_all_bsseq_id.RData")); 
+load(paste0(rmdata.file.prefix, "roadmap_Left Ventricle_all_bsseq_id.RData")); 
 meth.levels.raw = getMeth(bs, type = "raw")
 no.hits = which(is.na(rowMeans(meth.levels.raw)) == TRUE)
 bs = bs[-no.hits]
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
 LV <- bs 
 rm(bs); rm(meth.levels.raw); gc();
 
 # Right Ventricle
-load(paste0(data.file.prefix, "roadmap_Right Ventricle_all_bsseq_id.RData")); 
+load(paste0(rmdata.file.prefix, "roadmap_Right Ventricle_all_bsseq_id.RData")); 
 meth.levels.raw = getMeth(bs, type = "raw")
 no.hits = which(is.na(rowMeans(meth.levels.raw)) == TRUE)
 bs = bs[-no.hits]
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
 RV <- bs 
 rm(bs); rm(meth.levels.raw); gc();
 
 # Sigmoid Colon
-load(paste0(data.file.prefix, "roadmap_Sigmoid Colon_all_bsseq_id.RData")); 
+load(paste0(rmdata.file.prefix, "roadmap_Sigmoid Colon_all_bsseq_id.RData")); 
 meth.levels.raw = getMeth(bs, type = "raw")
 no.hits = which(is.na(rowMeans(meth.levels.raw)) == TRUE)
 bs = bs[-no.hits]
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
 SC <- bs 
 rm(bs); rm(meth.levels.raw); gc();
 
 # Left Ventricle
-load(paste0(data.file.prefix, "roadmap_Small Intestine_all_bsseq_id.RData")); 
+load(paste0(rmdata.file.prefix, "roadmap_Small Intestine_all_bsseq_id.RData")); 
 bs <- bs[,-which(pData(bs)$Age==30)]
 meth.levels.raw = getMeth(bs, type = "raw")
 no.hits = which(is.na(rowMeans(meth.levels.raw)) == TRUE)
 bs = bs[-no.hits]
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
 SI <- bs 
 rm(bs); rm(meth.levels.raw); gc();
 
@@ -222,10 +254,9 @@ roadmap <- plotBetaDistribution(bs, "Human Tissues")
 rm(bs)
 
 ### dendritic data
-data.file.prefix <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/DATA/"
 
 # 3 vs 3 controls
-load(paste0(data.file.prefix, "DC_BSSeq.RData"))
+load(paste0(ddata.file.prefix, "DC_BSSeq.RData"))
 DC <- chrSelectBSseq(DC, seqnames = paste0("chr", c(seq(1,22))), order = TRUE)
 DC <- DC[,pData(DC)$Infected == "NI"]
 
@@ -246,7 +277,7 @@ dendritic.control3 <- plotBetaDistribution(DC, "Dendritic Controls")
 meta3 <- pData(DC)
 
 # 3vs3 Simulated
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/RESULTS/binSim_preferential/sim.data.n3.control.all.rda")
+load(paste0(sim.dir.prefix, "/sim.data.n3.control.all.rda"))
 DC <- sim.dat.red$bs
 rm(sim.dat.red)
 pData(DC) <- meta3
@@ -267,7 +298,7 @@ dendritic.sim3 <- plotBetaDistribution(DC, "Dendritic Simulated")
 rm(DC)
 
 ## DNMT3a
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/DATA/dnmt3a_all_bsseq.RData")
+load(paste0(mdata.file.prefix, "/dnmt3a_all_bsseq.RData"))
 pData(bs)$Condition <- pData(bs)$Cond
 pData(bs)$Condition[pData(bs)$Condition=="KO_FLT3"] <- "ALL"
 pData(bs)$Condition[pData(bs)$Condition=="WT_FLT3"] <- "AML"
@@ -307,7 +338,7 @@ rm(ALL)
 rm(AML)
 rm(Control)
 
-load("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/DATA/dnmt3a_all_bsseq.RData")
+load(paste0(mdata.file.prefix, "/dnmt3a_all_bsseq.RData"))
 pData(bs)$Condition <- pData(bs)$Cond
 pData(bs)$Condition[pData(bs)$Condition=="KO_FLT3"] <- "ALL"
 pData(bs)$Condition[pData(bs)$Condition=="WT_FLT3"] <- "AML"

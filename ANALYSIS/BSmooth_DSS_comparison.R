@@ -3,6 +3,7 @@
 ## Results will be placed in a subfolder that is named after the method
 ##
 library(data.table)
+library(ggplot2)
 
   # convert covariates to column numbers if characters
   if (is.character(testCovariate)){
@@ -41,7 +42,7 @@ library(data.table)
   # load simulated data if necessary
 if (num.dmrs > 0){
     # don't re-simulate data; use what was simulated for the Perm method
-  # load(paste0(result.file.prefix0, "/sim.data.n", sampleSize, 
+    # load(paste0(result.file.prefix0, "/sim.data.n", sampleSize, 
 	#				   ".", cond, ".", chromosome, ".rda")) 
 					   # loads an object named sim.dat.red
 					   # with list items bs, dmr.mncov, dmr.L
@@ -52,8 +53,8 @@ if (num.dmrs > 0){
 }
 # rename column names to match sample names
 sampleNames(bs) <- pData(bs)$Sample
-M.mat <- assay(bs, "M")
-Cov.mat <- assay(bs, "Cov")
+M.mat <- as.matrix(assay(bs, "M"))
+Cov.mat <- as.matrix(assay(bs, "Cov"))
 colnames(M.mat) <- colnames(Cov.mat) <- sampleNames(bs)
 assays(bs) <- SimpleList("M"=M.mat, "Cov"=Cov.mat)
 
@@ -77,8 +78,8 @@ if (METHOD=="Metilene" | METHOD=="metilene"){
 	
 	if (!file.exists(paste0(result.file.prefix, met.file.out))| 
 		file.size(paste0(result.file.prefix, met.file.out)) == 0){
-  		system(paste0("/n/irizarryfs01_backed_up/kkorthauer/softwareTools/",
-  			"metilene_v0.2-7/metilene -a g1 -b g2 -t ", workers, " ", "-m ", minNum, " -d 0 -M ",
+  		system(paste0(metilene.path,
+  			" -a g1 -b g2 -t ", workers, " ", "-m ", minNumRegion, " -d 0 -M ",
   			 maxGap, " ", met.file, " > ", result.file.prefix, met.file.out))
   	}
   	
@@ -107,10 +108,19 @@ if (METHOD=="Metilene" | METHOD=="metilene"){
 				which.sig=which(dmrs$qval < pval.thresh), METHOD, num.to.plot=500, 
 				sim.file, design)
 			 
-	  tryDifferentCutoffs(LOCI=dmrs, minNum,
+	  tryDifferentCutoffs(LOCI=dmrs, minNumRegion,
 			cutoffsQ=c(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.75, 0.95, 1),
-			result.file.prefix, num.dmrs, sampleSize, cond,
-			METHOD, sim.file, maxGap=maxGap)	
+			result.file.prefix, sampleSize, cond,
+			METHOD, sim.file, maxGap=maxGap)
+			
+	 # get subsetted power/fdr results
+	 subsets <- c("low.density", "high.density", "low.coverage", "high.coverage", "low.effsize", "high.effsize")
+	 for (sub in subsets){
+	   	tryDifferentCutoffs(LOCI=dmrs, minNumRegion,
+			cutoffsQ=c(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.75, 0.95, 1),
+			result.file.prefix, sampleSize, cond,
+			METHOD, sim.file, maxGap=maxGap, subset=sub)	
+	 }			
    
 	}
  
@@ -187,12 +197,12 @@ if (METHOD=="BSmooth" | METHOD=="bsmooth"){
 	 # DMR calling
 	 dmrs0 <- dmrFinder(bs.tstat, cutoff = c(-4.6, 4.6),
 	 					stat="tstat", maxGap=maxGap)
-	 dmrs <- subset(dmrs0, n >= minNum & abs(meanDiff) >= 0)
+	 dmrs <- subset(dmrs0, n >= minNumRegion & abs(meanDiff) >= 0)
 	 nrow(dmrs)
 	 head(dmrs)	
 	 dmrs <- dmrs[order(-abs(dmrs$areaStat)/dmrs$n),]
 
-	 save(dmrs, file=dmr.file.name)
+	 save(dmrs, bs.tstat, file=dmr.file.name)
   }else{
   	 load(dmr.file.name)
   }
@@ -240,10 +250,18 @@ if (METHOD=="BSmooth" | METHOD=="bsmooth"){
     evaluateSimulation(OBS=dmrs, result.file.prefix, num.dmrs, sampleSize, cond,
 			  which.sig=1:nrow(dmrs), METHOD, num.to.plot=500, 
 			  sim.file, design)
-		tryDifferentCutoffs(LOCI=bs.tstat, minNum,
+	tryDifferentCutoffs(LOCI=bs.tstat, minNumRegion,
 			  cutoffsQ=c(0.00001,0.0001,0.00025,0.0005,0.001,0.002,0.005,0.01,0.025,0.05),
-			  result.file.prefix, num.dmrs, sampleSize, cond,
+			  result.file.prefix, sampleSize, cond,
 			  METHOD, sim.file, maxGap=maxGap)
+	 
+	 subsets <- c("low.density", "high.density", "low.coverage", "high.coverage", "low.effsize", "high.effsize")
+	 for (sub in subsets){
+	   	tryDifferentCutoffs(LOCI=bs.tstat, minNumRegion,
+			  cutoffsQ=c(0.00001,0.0001,0.00025,0.0005,0.001,0.002,0.005,0.01,0.025,0.05),
+			  result.file.prefix, sampleSize, cond,
+			  METHOD, sim.file, maxGap=maxGap, subset=sub)	
+	 }		
  }
  
   if (nrow(dmrs) > 0){
@@ -356,10 +374,18 @@ if (METHOD=="DSS" | METHOD=="dss"){
 				which.sig=1:nrow(dmrs), METHOD, num.to.plot=500,
 				sim.file, design)
 		# try different cutoffs and save #Detected and FDR
-			tryDifferentCutoffs(LOCI=dmlTest.sm, minNum,
+		tryDifferentCutoffs(LOCI=dmlTest.sm, minNumRegion,
 			  cutoffsQ=c(1e-6, 1e-5, 1e-4, 0.00025, 0.001, 0.002, 0.01, 0.025, 0.05, 0.1),
-			  result.file.prefix, num.dmrs, sampleSize, cond,
+			  result.file.prefix, sampleSize, cond,
 			  METHOD, sim.file, maxGap=maxGap)
+		
+	    subsets <- c("low.density", "high.density", "low.coverage", "high.coverage", "low.effsize", "high.effsize")
+		for (sub in subsets){
+		  tryDifferentCutoffs(LOCI=dmlTest.sm, minNumRegion,
+			  cutoffsQ=c(1e-6, 1e-5, 1e-4, 0.00025, 0.001, 0.002, 0.01, 0.025, 0.05, 0.1),
+			  result.file.prefix, sampleSize, cond,
+			  METHOD, sim.file, maxGap=maxGap, subset=sub)	
+		}	
     }
    
    if (nrow(dmrs) > 0){

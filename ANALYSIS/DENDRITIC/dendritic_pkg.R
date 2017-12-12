@@ -1,16 +1,20 @@
-setwd("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/DATA/")
-source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/summarizeResultsFunctions.R")
-data.file.prefix <- Sys.getenv("DATDIR")
+source("../summarizeResultsFunctions.R")
+raw.file.prefix <- data.file.prefix <- Sys.getenv("RAWDATDIR")
 result.file.prefix <- Sys.getenv("OUTDIR")
+sim.file.prefix <- Sys.getenv("SIMDIR")
+metilene.path <- Sys.getenv("METPATH")
+print(result.file.prefix) # make sure this is getting set correctly
+print(raw.file.prefix)
+print(sim.file.prefix)
 ifelse(!dir.exists(result.file.prefix), dir.create(file.path(result.file.prefix)), FALSE) 
 job <- as.numeric(Sys.getenv("JOB"))
 print(job)
 set.seed(848*job)
 
 library(dmrseq)
-STAT = "stat"
+STAT = Sys.getenv("STAT")
 
-if (!file.exists("DC_BSSeq.RData")){
+if (!file.exists(paste0(raw.file.prefix, "DC_BSSeq.RData"))){
 	 read.DC <- function(files, sampleNames, rmZeroCov = FALSE, verbose = TRUE){
 		 ## Argument checking
 		 if (anyDuplicated(files)){
@@ -93,7 +97,7 @@ if (!file.exists("DC_BSSeq.RData")){
 
 
 	# list files
-	files <- list.files(path = ".", pattern = "*.txt")
+	files <- list.files(path = raw.file.prefix, pattern = "*.txt")
 	if (length(grep("df", files))>0){ files <- files[-grep("df", files)] }
 	sampleNames <- sapply(strsplit(files, "_"), function(x) paste(x[[3]], x[[2]], sep="_"))
 
@@ -104,9 +108,9 @@ if (!file.exists("DC_BSSeq.RData")){
 	# read in one by one 
 	# 4 columns: chr pos M M+U
 	# need to keep only positions in common across samples
-	DC <- read.DC(files, sampleNames, verbose = TRUE)
+	DC <- read.DC(paste0(raw.file.prefix, files), sampleNames, verbose = TRUE)
 	pData(DC) <- data.frame(Sample=sampleNames, Infected=Infected, Cell=Cell) 
-	save(DC, file="DC_BSSeq.RData") 
+	save(DC, file=paste0(raw.file.prefix, "DC_BSSeq.RData")) 
 
 }
 
@@ -143,14 +147,14 @@ print(default)
 
  
 # list files
-files <- list.files(path = ".", pattern = "*5mC.txt")
+files <- list.files(path = raw.file.prefix, pattern = "*5mC.txt")
 sampleNames <- sapply(strsplit(files, "_"), function(x) paste(x[[3]], x[[2]], sep="_"))
 
 Infected <- sapply(strsplit(files, "_"), function(x) x[[3]])
 Cell <- sapply(strsplit(files, "_"), function(x) x[[2]])
 
 # read in bsseq object
-load("DC_BSSeq.RData")
+load(paste0(raw.file.prefix, "DC_BSSeq.RData"))
 
 # exclude sex chromosomes.
 DC <- chrSelectBSseq(DC, seqnames = paste0("chr", c(seq(1,22))), order = TRUE)
@@ -204,7 +208,7 @@ print(show(DC))
 
 # simulate DMRS
 dmrs.true <- NULL
-sim.file <- paste0(data.file.prefix, "/sim.data.n", sampleSize, 
+sim.file <- paste0(sim.file.prefix, "/sim.data.n", sampleSize, 
  					  ".", cond, ".all.rda")
 if (num.dmrs>0){  
  if(!file.exists(sim.file)){
@@ -256,55 +260,37 @@ if (METHOD=="dmrseq"){
 		pval.thresh, num.to.plot, genomeName, 
 		result.file.prefix,
 		dmrs.true)
-
 	
-# if not simulated, correlate methylation difference with expression from RNA seq
-	if (num.dmrs < 100){
-	   dmrs <- regions[regions$qval < pval.thresh & !is.na(regions$qval),]
-	   # if no dmrs found, take top 2000 as significant
-	   if (nrow(dmrs) == 0){
-		   message(paste0("Too few significant DMRs found by OLS; correlating ",
-		   		"expression with top 1000 regions"))
-		   dmrs <- regions[1:min(1000, nrow(regions)),]
-	   }
-	
-	   source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DENDRITIC/correlateDMRwithExpr.R")
-	   system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DENDRITIC/correlateDMRwithExpr.R")
-	   corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
-					   METHOD=METHOD, result.file.prefix, distance=1000, 
-					   pval.thresh=0.05)
 
-	}else{ # otherwise, generate the power/fdr table
-		tryDifferentCutoffs(LOCI=regions, minNumRegion,
+  tryDifferentCutoffs(LOCI=regions, minNumRegion,
 			  cutoffsQ=c(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.75, 0.95, 1),
-			  result.file.prefix, num.dmrs, sampleSize, cond,
+			  result.file.prefix, sampleSize, cond,
 			  METHOD="dmrseq", sim.file)	
 
-    }
+ # get subsetted power/fdr results
+  subsets <- c("low.density", "high.density", "low.coverage", "high.coverage", "low.effsize", "high.effsize")
+  for (sub in subsets){
+    tryDifferentCutoffs(LOCI=regions, minNumRegion,
+			  cutoffsQ=c(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.75, 0.95, 1),
+			  result.file.prefix, sampleSize, cond,
+			  METHOD="dmrseq", sim.file, subset=sub)	
+  }
+
   }else{
   if(default){
-    source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison_DEFAULT.R")
-	system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison_DEFAULT.R")
+    source("../BSmooth_DSS_comparison_DEFAULT.R")
+	system("cat ../BSmooth_DSS_comparison_DEFAULT.R")
   }else{
-    source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison.R")
-    system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison.R")
+    source("../BSmooth_DSS_comparison.R")
+    system("cat ../BSmooth_DSS_comparison.R")
   }
   
   if (METHOD == "metilene"){
    		dmrs <- dmrs[dmrs$qval < pval.thresh,]
-  }	
-	source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DENDRITIC/correlateDMRwithExpr.R")
-	system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DENDRITIC/correlateDMRwithExpr.R")
-	
-	if (nrow(dmrs) == 0 | cond=="control"){
-		  message("No significant DMRs found")
-	}else{	  
-	  if (num.dmrs == 0){
-		corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
-							METHOD=METHOD, result.file.prefix, distance=1000, 
-							pval.thresh=0.05)
-      }
-    }
+  }		
+  if (nrow(dmrs) == 0){
+		message("No significant DMRs found")
+  }
 }
 
 sessionInfo()

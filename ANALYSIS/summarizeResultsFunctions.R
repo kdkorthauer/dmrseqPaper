@@ -165,14 +165,55 @@ evaluateSimulation <- function(OBS, result.file.prefix, num.dmrs,
 tryDifferentCutoffs <- function(LOCI, minNumRegion,
                                 cutoffsQ=c(0.00001,0.0001,0.0005,
                                            0.005,0.01,0.025,0.05,0.1,0.2),
-                                result.file.prefix, num.dmrs, sampleSize, cond,
-                                METHOD, sim.file, maxGap){
+                                result.file.prefix, sampleSize, cond,
+                                METHOD, sim.file, maxGap, 
+                                subset=NULL){
   
   load(sim.file) 
+  dmrs.true <- dmrs.true.full <- sim.dat.red$gr.dmrs
+  num.dmrs <- length(dmrs.true)
   # loads an object named sim.dat.red
   # with list items bs, dmr.mncov, dmr.L
   
-  dmrs.true <- sim.dat.red$gr.dmrs
+  if(!is.null(subset)){
+    subset.choices <- c("low.density", "high.density",
+  	                    "low.coverage", "high.coverage",
+  	                    "low.effsize", "high.effsize")
+  	if(!(subset %in% subset.choices)){
+  		stop("Please specify a valid subset from the following: ",
+  		     subset.choices)
+  	}else if(grepl("density", subset)){
+  	  mcols(dmrs.true)$nCG <- countOverlaps(dmrs.true, sim.dat.red$bs)
+  	  mcols(dmrs.true)$density <- mcols(dmrs.true)$nCG / (end(dmrs.true)-start(dmrs.true) + 1)
+  	  if(grepl("low", subset)){
+  	    dmrs.true <- dmrs.true[mcols(dmrs.true)$density <= median(mcols(dmrs.true)$density),]
+  	  }else if(grepl("high", subset)){
+  	    dmrs.true <- dmrs.true[mcols(dmrs.true)$density > median(mcols(dmrs.true)$density),]
+  	  }
+  	}else if(grepl("coverage", subset)){
+  	  ols <- findOverlaps(dmrs.true, sim.dat.red$bs)
+  	  cov <- rowMeans(as.matrix(getCoverage(sim.dat.red$bs))[ols@to,])
+  	  mcols(dmrs.true)$coverage <- sapply(1:length(dmrs.true), function(i) mean(cov[ols@from==i]))
+  	  rm(ols)
+  	  rm(cov)
+  	  if(grepl("low", subset)){
+  	    dmrs.true <- dmrs.true[mcols(dmrs.true)$coverage <= median(mcols(dmrs.true)$coverage),]
+  	  }else if(grepl("high", subset)){
+  	    dmrs.true <- dmrs.true[mcols(dmrs.true)$coverage > median(mcols(dmrs.true)$coverage),]
+  	  }
+  	}else if(grepl("effsize", subset)){
+  	  mcols(dmrs.true)$effsize <- sim.dat.red$delta
+  	  if(grepl("low", subset)){
+  	    dmrs.true <- dmrs.true[mcols(dmrs.true)$effsize <= median(mcols(dmrs.true)$effsize),]
+  	  }else if(grepl("high", subset)){
+  	    dmrs.true <- dmrs.true[mcols(dmrs.true)$effsize > median(mcols(dmrs.true)$effsize),]
+  	  }
+  	}
+  	subset <- paste0(".", subset)
+  }else{
+    subset <- ""
+  }
+  
   rm(sim.dat.red)
   
   if(METHOD=="DSS"){
@@ -216,7 +257,7 @@ tryDifferentCutoffs <- function(LOCI, minNumRegion,
     
     if (nrow(dmrs)>0){
       res$fdr[q] <- round(sum(countOverlaps(makeGRangesFromDataFrame(dmrs), 
-                                            dmrs.true)==0)/nrow(dmrs),3)
+                                            dmrs.true.full)==0)/nrow(dmrs),3)
       res$power[q] <- round(sum(countOverlaps(dmrs.true, 
                                               makeGRangesFromDataFrame(dmrs))>0)/
                               length(dmrs.true), 3)
@@ -233,11 +274,10 @@ tryDifferentCutoffs <- function(LOCI, minNumRegion,
       res$nDMR[q] <- 0
     }
     message(paste0("cutoff ", q, " checked"))
-    #message(pthresh)
   }
   write.table(res, file=paste0(result.file.prefix, "/PowerFDRtable.n", 
                                sampleSize, ".", cond, ".", 
-                               num.dmrs, "DMRs.", METHOD, ".sim.txt"),
+                               length(dmrs.true), "DMRs.", METHOD, subset, ".sim.txt"),
               quote=FALSE, sep="\t")
 }
 

@@ -1,10 +1,15 @@
-# generate bsseq objects from BED files using the preprocessing script:
+# generate bsseq objects from BED files first (see PREPROCESSING directory and script
 # "/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DNMT3A/preprocess_DNMT3A_chunks.R"
 
-setwd("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/")
-source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/summarizeResultsFunctions.R")
+source("../summarizeResultsFunctions.R")
 data.file.prefix <- Sys.getenv("DATDIR")
 result.file.prefix <- Sys.getenv("OUTDIR")
+result.root.dir <- Sys.getenv("OUTDIR0")
+expr.file <- Sys.getenv("EXPDAT")
+metilene.path <- Sys.getenv("METPATH")
+print(result.file.prefix) # make sure this is getting set correctly
+print(data.file.prefix)
+print(result.root.dir)
 ifelse(!dir.exists(result.file.prefix), dir.create(file.path(result.file.prefix)), FALSE)
 
 library(dmrseq)
@@ -94,7 +99,7 @@ if (length(tissue1) < sampleSize | length(tissue2) < sampleSize){
 print(ls())
 
 pval.thresh <- 0.10
-num.to.plot <- 500
+num.to.plot <- 50
 genomeName <- "mm10"
 testCovariate="Cond"
 minNumRegion=5
@@ -144,17 +149,17 @@ if (METHOD=="dmrseq"){
 		
 }else{
   if(default){
-    source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison_DEFAULT.R")
-	system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison_DEFAULT.R")
+    source("../BSmooth_DSS_comparison_DEFAULT.R")
+	system("cat ../BSmooth_DSS_comparison_DEFAULT.R")
   }else{
-    source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison.R")
-    system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison.R")
+    source("../BSmooth_DSS_comparison.R")
+    system("cat ../BSmooth_DSS_comparison.R")
   }
 	
 }
 
-source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DNMT3A/correlateDMRwithExpr_tx.R")
-system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DNMT3A/correlateDMRwithExpr_tx.R")
+source("./correlateDMRwithExpr.R")
+system("cat ./correlateDMRwithExpr.R")
 
  if (METHOD=="dmrseq"){
     load(paste0(result.file.prefix, "/regions_", cond, "_", 
@@ -164,28 +169,37 @@ system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/DNMT3A/correlateDMRwi
 	rm(regions)
 	dmrs$beta <- dmrseq:::meanDiff(bs, dmrs, testCovariate, adjustCovariate=NULL)
 
+  for(win in c("promoter", "genebody", "islandshore")){
  	corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 			   METHOD=METHOD, result.file.prefix, distance=2000, 
-			   pval.thresh=0.10, fdr=TRUE)
+			   pval.thresh=0.10, fdr=TRUE,
+			   expr.file=expr.file, Window=win)
+  }
     dmrs <- dmrs[dmrs$qval < pval.thresh & !is.na(dmrs$qval),]	
     dmrs$beta <- dmrseq:::meanDiff(bs, dmrs, testCovariate, adjustCovariate=NULL)
  }			    
 
   if (METHOD == "metilene"){
+   for(win in c("promoter", "genebody", "islandshore")){
   		corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 			   METHOD=METHOD, result.file.prefix, distance=2000, 
-			   pval.thresh=0.10, fdr=TRUE)
+			   pval.thresh=0.10, fdr=TRUE,
+			   expr.file=expr.file, Window=win)
+	}
    		dmrs <- dmrs[dmrs$qval < pval.thresh,]
   }	
   
 if (nrow(dmrs) > 100){
+  for(win in c("promoter", "genebody", "islandshore")){
 	corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 						METHOD=METHOD, result.file.prefix, distance=2000,
-						pval.thresh=0.10, default=default, effectSize=TRUE)
+						pval.thresh=0.10, default=default, effectSize=TRUE,
+						expr.file=expr.file, Window=win)
 	corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 						METHOD=METHOD, result.file.prefix, distance=2000,
-						pval.thresh=0.10, default=default, effectSize=FALSE)
-						
+						pval.thresh=0.10, default=default, effectSize=FALSE,
+						expr.file=expr.file, Window=win)
+  }
 }
 
 if (METHOD != "dmrseq"){
@@ -201,19 +215,19 @@ if (METHOD == "dmrseq"){
 	# plotting of top 10 exclusive regions for each method
 	dmrseq <- dmrs
 
-	load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/BSmooth/",
+	load(paste0(result.root.dir, "/BSmooth/",
 	  "dmrs.BSmooth.n", sampleSize, ".", cond, ".Rdata"))
 	bsmooth <- dmrs
-	bsmooth$stat <- bsmooth$areaStat #/bsmooth$n
+	bsmooth$stat <- bsmooth$areaStat 
   	bsmooth$beta <- bsmooth$meanDiff
 	bsmooth$indexStart <- bsmooth$idxStart
 	bsmooth$indexEnd <- bsmooth$idxEnd
 
-	load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DNMT3A/RESULTS/DSS/",
+	load(paste0(result.root.dir, "/DSS/",
 	  "dmrs.DSS.n", sampleSize, ".", cond, ".Rdata"))
 	rm(dmlTest.sm)
 	dss <- dmrs
-	dss$stat <- dss$areaStat #/dss$nCG
+	dss$stat <- dss$areaStat
   	dss$beta <- dss$diff.Methy
 	dss$indexStart <- dss$start
 	dss$indexEnd <- dss$end
@@ -221,14 +235,14 @@ if (METHOD == "dmrseq"){
 	rm(dmrs)
 
 	# compare dmrSeq with BSmooth
-	compareOverlap(dmr1=dmrseq, dmr2=bsmooth, num.to.plot=500,
+	compareOverlap(dmr1=dmrseq, dmr2=bsmooth, num.to.plot=num.to.plot,
 				   bs=bs, LIST1="dmrseq", LIST2="BSmooth", 
 				   result.file.prefix=result.file.prefix, 
 				   sampleSize=sampleSize, cond=cond,
 				   testCovariate=testCovariate, genomeName=genomeName)
 						
 	# compare dmrSeq with DSS
-	compareOverlap(dmr1=dmrseq, dmr2=dss, num.to.plot=500,
+	compareOverlap(dmr1=dmrseq, dmr2=dss, num.to.plot=num.to.plot,
 				   bs=bs, LIST1="dmrseq", LIST2="DSS", 
 				   result.file.prefix=result.file.prefix, 
 				   sampleSize=sampleSize, cond=cond,

@@ -1,11 +1,20 @@
 library(ggplot2)
-library(reshape2)
 library(annotatr)
+library(rtracklayer)
+library(biomaRt)
+library(DESeq2)
+library(fmsb) 
+library(readr)
+
 corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD, 
 							result.file.prefix, distance=2000, 
 							pval.thresh=0.10, 
 							min.length = NULL, max.length = NULL,
-							default=FALSE, effectSize=FALSE, fdr=FALSE){ 
+							default=FALSE, effectSize=FALSE, fdr=FALSE,
+							expr.file=NULL,
+							Window="promoter"){ 
+   message("Assessing overlap of DMRs with ", Window)
+
    if(effectSize){
   	 dmrs <- dmrs[order(-abs(dmrs$beta)),]
    }else{
@@ -23,8 +32,6 @@ corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD,
    	 	dmrs$L <- dmrs$nCG
    }
     
-   #dmrs <- dmrs[dmrs$L < 40 & (dmrs$end-dmrs$start) < 2000,]
-   #dmrs <- dmrs[abs(dmrs$beta)> 0.10,] 
    
    if(default & (METHOD=="BSmooth" | METHOD=="DSS")){
    	   METHOD <- paste0(METHOD, "_default")
@@ -102,49 +109,38 @@ corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD,
    # column is a sample (with a header containing the sample names of each column in the first
    # line.  Some of the samples represent the combination of multiple techneical replicates.
 
-   expr <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA/RNAseq/UCSD.mRNA-Seq.counts.txt",
+   expr <- read.table(expr.file,
    				header=TRUE, stringsAsFactors=FALSE)
    	
    rownames(expr) <- expr$Geneid
-   
-   # TODO: 
-   # 1. map each DMR (+/- 2kb) to closest (if any) ensembl gene ID (using TSS as location)
-   # 2. for each DMR, calculate the overall estimate of mean methylation change across the
-   #	 two sample groups (mean meth grp1 - mean meth grp2), as well as the overall 
-   #    estimate for the log2 fold change of expression between the two sample groups.
-   #    Will have #DMR points to examine a correlation / scatterplot.  Make this scatterplot
-   # 	 for each of the methods examined; hopefully the 'dmrseq' method will have the strongest
-   #    negative correlation (as methylation increases, expression decreases).  This will
-   # 	 provide evidence that the results for the regions (particularly the large blocks, 
-   #    which are not as well studied/demonstrated/validated) are biologically meaningful
-   #    and that we are detecting a functional signal in the methylation data.
-
-   # To accomplish the above, will need files that map:
-   # 1. Mouse ensembl genes to TSS positions of each gene
-   # 2. Mouse ensembl genes to RefSeq and/or Hugo gene symbols
-
-   library(rtracklayer)
-   library(biomaRt)
   
- gene.annot.filename <- "/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/gene.annot.rda"
+ # file to temporarily store gene annotation (so only needs to be run once)
+ gene.annot.filename <- paste0(data.file.prefix, "/gene.annot.rda")
  
  # table of UCSC tx ids to Ensembl (obtained from UCSC table browser)
- knownToEnsembl_hg38 <- read.table("/n/irizarryfs01_backed_up/kkorthauer/WGBS/DENDRITIC/knownToEnsembl_hg38.txt",
- 	stringsAsFactors=FALSE)
+ # download as temp file then remove
+ filename <- tempfile()
+ url <- "http://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/knownToEnsembl.txt.gz"
+ download.file(url, filename)
+ knownToEnsembl_hg38 <- read_tsv(gzfile(filename), col_names=FALSE) 
+ system(paste0("rm ", filename))
+
  colnames(knownToEnsembl_hg38) <- c("tx_id", "ensembl")
- knownToEnsembl_hg38$ensembl_id <- unlist(sapply(strsplit(knownToEnsembl_hg38$ensembl, "\\."), function(y) y[[1]]))
+ knownToEnsembl_hg38$ensembl_id <- unlist(sapply(strsplit(knownToEnsembl_hg38$ensembl, "\\."),
+  function(y) y[[1]]))
   
  if(!file.exists(gene.annot.filename)){
    # get GRanges object with positions of all genes with Ensembl IDs
    # this uses the human genome since it is intended for use on the dendritic dataset
    # where we also have RNAseq data on the same samples
    
-   genomeName <- "hg19"
+   genomeName <- "hg38"
    session <- browserSession("UCSC")
    genome(session) <- genomeName 
-   # use trackNames(session) to see available tracks to load
-   genes <- session[["Ensembl Genes"]]	
+   # use trackNames(ucscTableQuery(session)) to see available tracks to load
+   genes <- session[["wgEncodeGencodeV27"]]	
    geneNames <- mcols(genes)$name
+   geneNames <- unlist(lapply(strsplit(geneNames, "\\."), function(x) x[[1]]))
 
    # Use biomaRt to retrieve mapping from ENSEMBL tx id to gene id 
    # along with transcript start site (TSS) (since this is not necessarily the same
@@ -176,7 +172,7 @@ corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD,
    mcols(genes)$GeneID <- newnames[not.missing,2]
    mcols(genes)$Gene <- newnames[not.missing,3]
    score(genes) <- newnames[not.missing,4]
-	   	
+   genes <- genes[mcols(genes)$Gene != "",]	   	
 
    # save this GRanges object as the tx level summary
    transcripts <- genes
@@ -190,11 +186,12 @@ corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD,
    if(!file.exists(gene.annot.filename)){
 	   for(g in names.dup){
 		 gd <- genes[mcols(genes)$Gene == g]
+		 met <- mcols(gd)[1,]
+		 gd <- reduce(gd)
+		 mcols(gd) <- met	 
+		 score(gd) <- start(resize(gd, width = 1))
 		 genes <- genes[-which(mcols(genes)$Gene == g)]
-		 g1 <- gd[1]
-		 start(g1) <- min(start(gd))
-		 end(g1) <- max(end(gd))
-		 genes <- c(genes, g1)
+		 genes <- c(genes, gd)
 	   }
 	   save(genes, transcripts, file=gene.annot.filename)
    }else{
@@ -208,10 +205,9 @@ corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD,
    # use score(genes) as the TSS (transcription start site)
    # now need to match each row of the tbl object to a range from the tx object
 
-   # chop off ".#" suffix, if it exists (only for encode expr data)
+   # chop off ".#" suffix, if it exists
    exprIDs <- rownames(expr)
    exprIDs <- unlist(sapply(strsplit(exprIDs, "\\."), function(y) y[[1]]))
-
 
    # map gene ids from expression object tbl to gene 
    x <- match(mcols(genes)$GeneID, exprIDs)
@@ -226,9 +222,8 @@ corrWithExpression <- function(dmrs, time, time2=NULL, tiss1, tiss2, METHOD,
    
    # keep only the ranges in genes that correspond to the matched rows of tbl
    y <- match(exprIDs, mcols(genes)$GeneID)
-   yt <- match(mcols(transcripts)$GeneID, exprIDs)
    genes <- genes[y,]	
-   expr$gene <- genes$Gene
+   rownames(expr) <- genes$Gene
 	
    # colIDs for files selected time points and tissue types
    if (!exists("time2")){
@@ -253,8 +248,6 @@ if (length(c1)>0 & length(c2)>0){
 
    # calculate a fold change from tiss1 to tiss2 for each of the genes in the 
    # expr matrix
-   library(DESeq2)
-
    expr.ct <- ceiling(expr)
    sampleNames <- paste0(colnames(expr.ct), c(1:length(c1), 1:length(c2)))
    colData <- data.frame(samp=sampleNames, rep=factor(c(1:length(c1), 1:length(c2))),
@@ -283,54 +276,19 @@ if (length(c1)>0 & length(c2)>0){
    names(log2FC) <- rownames(expr)
    names(p.FC) <- rownames(expr)
 
-   # attach the log2FCs to the genes in the genes GRanges object
-   mcols(genes)$log2FC <- log2FC
-   mcols(genes)$p.FC <- p.FC
-
-   mcols(transcripts)$log2FC <- log2FC[yt]
-   mcols(transcripts)$p.FC <- p.FC[yt]
-
    message(paste0("Number of genes total: ", sum(!is.na(p.FC))))
    message(paste0("Number of DE genes total: ", sum(p.FC < pval.thresh, na.rm=TRUE)))
 
-   # expand TSS site by +/- 2kb
-   # will want to change this in two ways:
-   # (1) don't asume that the TSS is exactly the minimum start value of the gene - 
-   #     since genes can start with introns
-   # (2) only expect that gene expression is negatively correlated with methylation
-   #     difference in the promoter region; not in the gene body itself (don't use 2kb
-   #     in both directions since this will contain 2kb of the sequence within the gene 
-   #     body.  
-   
-   #tss <- start(genes)
-   #start(genes) <- pmax(tss - distance, 1)
-   #end(genes) <- tss + distance
-   
-   tss <- score(genes)
-   # construct new GRanges object with start and end values that
-   # indicate the starting and ending position of the 'promoter' region
-   # that will be correlated with the expression value
-   genes2 <- GRanges(seqnames = seqnames(genes),
-   					ranges=IRanges(pmax(tss - distance, 1), 
-   								   tss),
-   				    score=score(genes),
-   				    Gene=genes$Gene)
-   mcols(genes2)$GeneID <- mcols(genes)$GeneID
-   mcols(genes2)$log2FC <- mcols(genes)$log2FC
-   
-   transcripts <- transcripts[!is.na(transcripts$log2FC),]
-    
-   # associate each row of dmr object with log2FC of genes within
+     # associate each row of dmr object with log2FC of genes within
    # 2kb of TSS, if any
    dmrs$chr <- as.character(dmrs$chr)
    if (length(grep("chr", dmrs$chr)) == 0 ){
    		dmrs$chr <- paste0("chr", dmrs$chr)
    }
-   
-   annot_CpG = c('hg38_cpgs')
 
-   # Build the annotations (a single GRanges object)
-   for (attempt in 1:5){
+   # Get CpG and promoter / TSS / gene body annotation  
+   annot_CpG = c('hg38_cpgs')
+    for (attempt in 1:5){
 	  annotations = try(build_annotations(genome = 'hg38', annotations = annot_CpG), 
 				  silent=TRUE)  
 	  if(!is(annotations, 'try-error')){
@@ -341,10 +299,27 @@ if (length(c1)>0 & length(c2)>0){
 		          5-attempt, " attempts left"))
 	  }
    }
-   
-   overlaps <- findOverlaps(makeGRangesFromDataFrame(dmrs), granges(genes2))
   
-   for (attempt in 1:5){
+   # adjust annot based on window type
+   if (Window=="genebody"){
+      for (attempt in 1:5){
+	     annot = try(build_annotations(genome = 'hg38', 
+                   annotations = c('hg38_genes_5UTRs','hg38_genes_cds','hg38_genes_3UTRs')), 
+				 silent=TRUE)  
+		 annot <- unlist(reduce(split(annot, annot$symbol),min.gapwidth=1e8))
+		 annot$symbol <- names(annot)
+		 
+	   if(!is(annot, 'try-error')){
+		 message("Download of gene body annotation successful!")
+		 break;
+	   }else{
+		 message(paste0("Download of gene body annotation failed. ",
+				 5-attempt, " attempts left"))
+	   }
+     }
+     
+   }else if(Window=="islandshore" | Window=="promoter"){
+    for (attempt in 1:5){
 	 annot = try(build_annotations(genome = 'hg38', 
                    annotations = 'hg38_genes_promoters'), 
 				 silent=TRUE)  
@@ -355,17 +330,26 @@ if (length(c1)>0 & length(c2)>0){
 		 message(paste0("Download of Promoter annotation failed. ",
 				 5-attempt, " attempts left"))
 	 }
+    }
+    
+     if(Window=="islandshore"){
+       annot <- trim(resize(annot,  width = distance, fix = 'end'))
+     }
+    
+     annot <- unlist(reduce(split(annot, annot$symbol)))
+     annot$symbol <- names(annot)
+     
+   }else{
+     stop("please specify a valid window (from genebody, islandshore or promoter)")
    }
    
-   annot <- unique(annot)
-   ucsc.ens <- match(annot$tx_id, knownToEnsembl_hg38$tx_id)
-   annot$ensembl_id <- knownToEnsembl_hg38$ensembl_id[ucsc.ens]
+   x <- match(annot$symbol,rownames(expr))
+   annot$log2FC <- log2FC[x]
+   annot$p.FC <- p.FC[x]
+   annot <- annot[!is.na(annot$p.FC),]
    
    centers <- makeGRangesFromDataFrame(dmrs)
-  orig.starts <- start(centers) + floor(width(centers)/2) 
-   start(centers) <- pmax(1, orig.starts - distance/2) + 1
-   end(centers) <- orig.starts + distance/2
-    
+     
    dm_annotated = annotate_regions(regions = centers,
    	annotations = annotations, # CpG annotations from annotatr
    	ignore.strand = TRUE,
@@ -442,14 +426,7 @@ if (length(c1)>0 & length(c2)>0){
    		st <- 1
    }
    centers <- makeGRangesFromDataFrame(dmrs[st:rnk,])
-   
-   #start(centers) <- start(centers) + floor(width(centers)/2) - distance + 1
-   #end(centers) <- start(centers) + distance - 1
-   overlaps2 <- findOverlaps(centers, annot)
-   which.trans <- match(annot[overlaps2@to,]$ensembl_id, transcripts$TxID)
-   which.genes <- match(annot[overlaps2@to,]$symbol, genes$Gene)
-   x <- is.na(which.genes) 
-   xt <- is.na(which.trans)
+   overlaps <- findOverlaps(centers, annot)
    
    nDML[ct] <- sum(dmrs[1:rnk,]$L)
    
@@ -462,23 +439,6 @@ if (length(c1)>0 & length(c2)>0){
     # Intersect the regions we read in with the annotations
    	topDMRs <- dmrs[st:rnk,]
 	
-   #dm_annotated = annotate_regions(regions = makeGRangesFromDataFrame(topDMRs),
-   #	annotations = annotations, # CpG annotations from annotatr
-   #	ignore.strand = TRUE,
-   #	quiet = FALSE)
-   #dm_annotated$type <- dm_annotated@elementMetadata@listData$annot$type
-   
-   
-   # Add a GRanges to the mcols giving the intersection
-   #dm_annotated$intersection = GenomicRanges::GRanges(
-#	   seqnames = GenomicRanges::seqnames(dm_annotated),
-#	   ranges = IRanges::IRanges(
-#		   start = pmax(start(dm_annotated), start(dm_annotated$annot)),
-#		   end = pmin(end(dm_annotated), end(dm_annotated$annot))
-#	   ),
-#	   strand = strand(dm_annotated)
-#   )
-
    # Split by type
    
    regionTab <- table(topDMRs$CpGcat)/nrow(topDMRs)
@@ -507,56 +467,14 @@ if (length(c1)>0 & length(c2)>0){
 	pIslands[ct] <- 0
    }
 
-#   dm_annotated_grl = split(dm_annotated, dm_annotated$type)
-#   regionTab <- lapply(dm_annotated_grl, function(x) 
-#   		sum(countOverlaps(bs, x$intersection)>0) / sum(topDMRs$L))
-   	
- #  if (length(grep("inter", names(regionTab)))>0){
- #  	pOpen[ct] <- unlist(regionTab[grep("inter", names(regionTab))])
- #  }else{
- #  	pOpen[ct] <- 0
- #  }
+
+  if(length(overlaps) > 0){  
    
-#   if (length(grep("shelves", names(regionTab)))>0){
-#   	pShelves[ct] <- unlist(regionTab[grep("shelves", names(regionTab))])
-#   }else{
-#   	pShelves[ct] <- 0
-#   }
+   meth.diff <- topDMRs$beta[overlaps@from]
+   expr.diff <- annot$log2FC[overlaps@to]
    
-#   if (length(grep("shores", names(regionTab)))>0){
-#   	pShores[ct] <- unlist(regionTab[grep("shores", names(regionTab))])
-#   }else{
-#    pShores[ct] <- 0
-#   }
-   
-#   if (length(grep("islands", names(regionTab)))>0){
-#   	pIslands[ct] <- unlist(regionTab[grep("islands", names(regionTab))])
-#   }else{
-#	pIslands[ct] <- 0
-#   }
-   
- 
-  if(length(overlaps2) > 0){  
-   
-   meth.diff <- topDMRs$beta[overlaps2@from[!x]]
-   meth.diff.t <- topDMRs$beta[overlaps2@from[!xt]]
-   
-   which.genes <- which.genes[!x]
-   which.trans <- which.trans[!xt]
-   
-   expr.diff <- mcols(genes)$log2FC[which.genes]
-   expr.diff.t <- mcols(transcripts)$log2FC[which.trans]
-   
-   pvals <- mcols(genes)$p.FC[which.genes]
-   pvals.t <- mcols(transcripts)$p.FC[which.trans]
+   pvals <- annot$p.FC[overlaps@to]
    pvals[is.na(pvals)] <- 1
-   pvals.t[is.na(pvals.t)] <- 1
-   
-   #if (sum(pvals < pval.thresh, na.rm=TRUE) / sum(!is.na(pvals)) > 0.10){
-   #   if (sum(pvals < 0.05) > 5){
-   #		pval.thresh <- 0.05
-   #	  }
-   #}
    
    corr.me <- round(cor(meth.diff, expr.diff, use="pairwise", method="spearman"), 4)
    p.me <- cor.test(meth.diff, expr.diff, method="spearman")$p.value
@@ -565,7 +483,7 @@ if (length(c1)>0 & length(c2)>0){
    b <- sum(expr.diff > 0 & meth.diff > 0) + 1
    c <- sum(expr.diff < 0 & meth.diff < 0) + 1
    d <- sum(expr.diff < 0 & meth.diff > 0) + 1
-   library(fmsb)   
+
    or.me <- oddsratio(a,b,c,d)[["estimate"]]
    ci.me <- oddsratio(a,b,c,d)[["conf.int"]]
    
@@ -577,11 +495,9 @@ if (length(c1)>0 & length(c2)>0){
    
  if (sum(pvals < pval.thresh, na.rm=TRUE) > 1){
     
-    sigGenes <- genes[mcols(genes)$p.FC < pval.thresh & !is.na(mcols(genes)$p.FC),]
-    sigGenes <- annot[annot$ensembl_id %in% mcols(sigGenes)$name |
-    				  annot$symbol %in% mcols(sigGenes)$Gene,]
+    sigGenes <- annot[annot$p.FC < pval.thresh,]
 
-    propDE[ct] <- sum(countOverlaps(centers, #makeGRangesFromDataFrame(dmrs[1:rnk,]), 
+    propDE[ct] <- sum(countOverlaps(centers, 
     			sigGenes)>0) / length(st:rnk)
     dmrs.DE <- topDMRs[countOverlaps(makeGRangesFromDataFrame(topDMRs), 
     			sigGenes)>0,]
@@ -621,67 +537,7 @@ if (length(c1)>0 & length(c2)>0){
    	deIslands[ct] <- (regionDETab[grep("Island", names(regionDETab))])
    }else{
 	deIslands[ct] <- 0
-   }
-   
- #  de_annotated = annotate_regions(regions = makeGRangesFromDataFrame(dmrs.DE),
- #  	annotations = annotations,
- #  	ignore.strand = TRUE,
- #  	quiet = FALSE)
- #  de_annotated$type <- de_annotated@elementMetadata@listData$annot$type
-
-   # Add a GRanges to the mcols giving the intersection
- #  de_annotated$intersection = GenomicRanges::GRanges(
- #	   seqnames = GenomicRanges::seqnames(de_annotated),
- #	   ranges = IRanges::IRanges(
-#		   start = pmax(start(de_annotated), start(de_annotated$annot)),
-#		   end = pmin(end(de_annotated), end(de_annotated$annot))
-#	   ),
-#	   strand = strand(de_annotated)
- #  )
-
-   # Split by type
-#   de_annotated_grl = split(de_annotated, de_annotated$type)
-  			
- #  regionALLTab <- lapply(dm_annotated_grl, function(x) 
-#	  sum(countOverlaps(bs, x$intersection)>0))  
-  
- #  regionDETab <-  lapply(de_annotated_grl, function(x) 
-#	  sum(countOverlaps(bs, x$intersection)>0))  
-	  
-#   tmp <- rep(0, length(regionALLTab))
-#   names(tmp) <- names(regionALLTab)
-#   for(k in 1:length(regionDETab)){
-#   	tmp[names(tmp) == names(regionDETab)[k]] <- regionDETab[k]
-#   }
-#   regionDETab <- tmp
-#   rm(tmp)		
-   		
-#   regionDETab <- unlist(regionDETab) / unlist(regionALLTab)
- 
-#   if (length(grep("inter", names(regionDETab)))>0){
-#   	deOpen[ct] <- (regionDETab[grep("inter", names(regionDETab))])
-#   }else{
-#   	deOpen[ct] <- 0
-#   }
-   
-#   if (length(grep("shelves", names(regionDETab)))>0){
-#   	deShelves[ct] <- (regionDETab[grep("shelves", names(regionDETab))])
-#   }else{
-#   	deShelves[ct] <- 0
-#   }
-   
-#   if (length(grep("shores", names(regionDETab)))>0){
-#   	deShores[ct] <- (regionDETab[grep("shores", names(regionDETab))])
-#   }else{
-#    deShores[ct] <- 0
-#   }
-   
-#   if (length(grep("islands", names(regionDETab)))>0){
-#   	deIslands[ct] <- (regionDETab[grep("islands", names(regionDETab))])
-#   }else{
-#	deIslands[ct] <- 0
-#   }
-    
+   } 
    
    	corr.me.de <- round(cor(meth.diff[pvals < pval.thresh], 
    						   expr.diff[pvals < pval.thresh], use="pairwise", method="spearman"), 4)
@@ -731,13 +587,10 @@ if (length(c1)>0 & length(c2)>0){
    CI.hi[ct] <- odds.me.de.CI[2]
    
    xlimits <- range(meth.diff)
-   if(METHOD == "dmrseq"){
-   #		xlimits <- c(-1.5,1.5)
-   }
       
    save(meth.diff, expr.diff, file=paste0(result.file.prefix, "/", subfolder, "/corrWithExpression.", METHOD, ".n", 
 		   sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", rnk, "_min",
-		   min.length, "_max", max.length, ".RData"))
+		   min.length, "_max", max.length, ".", Window, ".RData"))
    # correlate log2 foldchanges with DMR test statistic
    diff.df <- data.frame(meth.diff=meth.diff, expr.diff=expr.diff,
    						 DE = pvals < pval.thresh)
@@ -747,7 +600,7 @@ if (length(c1)>0 & length(c2)>0){
    
    pdf(paste0(result.file.prefix, "/", subfolder, "/corrWithExpressionPlot.", METHOD, ".n", 
 		   sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", rnk, "_min",
-		   min.length, "_max", max.length, ".pdf"),
+		   min.length, "_max", max.length,".", Window,  ".pdf"),
 		   height=5, width=6)
 		gp <- ggplot(aes(x=meth.diff, y=expr.diff, fill=DE, colour=DE), 
 							  data=diff.df) + 
@@ -765,7 +618,7 @@ if (length(c1)>0 & length(c2)>0){
    dev.off()
    
       save(gp, file=paste0(result.file.prefix, "/", subfolder, "/corrWithExpressionPlot.", 
-    		METHOD, ".n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", rnk, ".RData"))
+    		METHOD, ".n", sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", rnk, ".", Window, ".RData"))
  }else{
     message("No overlaps between DMRs and TSS within ", distance, " bps.")
  }
@@ -794,12 +647,12 @@ if (length(c1)>0 & length(c2)>0){
 							  lDMR = lDMR)
     save(rank.df, file=paste0(result.file.prefix, "/", subfolder, "/oddsByRanking.", METHOD, ".n", 
 		   sampleSize, ".", cond, ".", num.dmrs, "DMRS.top", rnk, "_min",
-		   min.length, "_max", max.length, ".RData"))
+		   min.length, "_max", max.length,".", Window, ".RData"))
 	rank.df <- rank.df[rank.df$ranks <= nrow(dmrs),]
     
 	pdf(paste0(result.file.prefix, "/", subfolder, "/oddsByRankingPlot.", METHOD, ".n", 
 		   sampleSize, ".", cond, ".", num.dmrs, "DMRS.", "_min",
-		   min.length, "_max", max.length, ".pdf"),
+		   min.length, "_max", max.length,".", Window,  ".pdf"),
 		   height=4, width=7)
 		gp <- ggplot(aes(x=ranks, y=odds), 
 							  data=rank.df) + 
@@ -818,14 +671,14 @@ if (length(c1)>0 & length(c2)>0){
    # for plotting when calling BSmooth or DSS - need to hard specify which 
    # version of the dmrseq results to use for plotting. 
    if (grepl("DSS", METHOD) | grepl("BSmooth", METHOD) |  grepl("metilene", METHOD)){
-   		pfile1 <- list.files(paste0(path="/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/dmrseq_pkg/", subfolder, "/"),
+   		pfile1 <- list.files(paste0(result.root.dir, "/dmrseq_pkg/", subfolder, "/"),
    						pattern=paste0("oddsByRanking.dmrseq.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-   		pfile2 <- list.files(paste0(path="/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/dmrseq_pkg/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+   		pfile2 <- list.files(paste0(result.root.dir, "/dmrseq_pkg/", subfolder, "/"),
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", Window, ".RData")) 		  
    
 		if (length(pfile1[pfile1 %in% pfile2]) == 1){	   					 					
-		 pfile <- paste0(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/dmrseq_pkg/", subfolder, "/"), 
+		 pfile <- paste0(paste0(result.root.dir, "/dmrseq_pkg/", subfolder, "/"), 
 				   pfile1[pfile1 %in% pfile2])
 		}else{
 		   pfile <- "null"
@@ -837,7 +690,7 @@ if (length(c1)>0 & length(c2)>0){
    						pattern=paste0("oddsByRanking.dmrseq.n", 
 		   					sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
   	 	pfile2 <- list.files(path=paste0(result.file.prefix, "/", subfolder, "/"),
-   						pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 
+   						pattern=paste0("_min", min.length, "_max", max.length, ".", Window, ".RData")) 
    		if (length(pfile1[pfile1 %in% pfile2]) == 1){	   					 					
    			pfile <- paste0(result.file.prefix, "/", subfolder, "/", 
    		      pfile1[pfile1 %in% pfile2])
@@ -858,49 +711,49 @@ if (length(c1)>0 & length(c2)>0){
    }
    		
    if (fdr){		 		   
-	  bfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/", "odds_statistic2_default2", "/"),
+	  bfile1 <- list.files(path=paste0(result.root.dir, "/BSmooth_default/", "odds_statistic_default", "/"),
 						   pattern=paste0("oddsByRanking.BSmooth_default.n", 
 							   sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-	  bfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/", "odds_statistic2_default2", "/"),
-						   pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+	  bfile2 <- list.files(path=paste0(result.root.dir,"/BSmooth_default/", "odds_statistic_default", "/"),
+						   pattern=paste0("_min", min.length, "_max", max.length,".", Window,  ".RData")) 		  
 	  if (length(bfile1[bfile1 %in% bfile2]) == 1){	   					 					
-	  bfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/", "odds_statistic2_default2", "/", 
+	  bfile <- paste0(result.root.dir,"/BSmooth_default/", "odds_statistic_default", "/", 
 				 bfile1[bfile1 %in% bfile2])
 	  }else{
 		 bfile <- "null"
 	  }
 
-	  dfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/", "odds_statistic2_default2", "/"),
+	  dfile1 <- list.files(path=paste0(result.root.dir,"/DSS_default/", "odds_statistic_default", "/"),
 						   pattern=paste0("oddsByRanking.DSS_default.n", 
 							   sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-	  dfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/", "odds_statistic2_default2", "/"),
-						   pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+	  dfile2 <- list.files(path=paste0(result.root.dir,"/DSS_default/", "odds_statistic_default", "/"),
+						   pattern=paste0("_min", min.length, "_max", max.length,".", Window,  ".RData")) 		  
 	  if (length(dfile1[dfile1 %in% dfile2]) == 1){	   					 					
-	  dfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/", "odds_statistic2_default2", "/", 
+	  dfile <- paste0(result.root.dir,"/DSS_default/", "odds_statistic_default", "/", 
 				 dfile1[dfile1 %in% dfile2])
 	  }else{
 		 dfile <- "null"
 	  }
  }else{      		 		   
-	   bfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/", subfolder, "/"),
+	   bfile1 <- list.files(path=paste0(result.root.dir,"/BSmooth/", subfolder, "/"),
 							pattern=paste0("oddsByRanking.BSmooth.n", 
 								sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-	   bfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/", subfolder, "/"),
-							pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+	   bfile2 <- list.files(path=paste0(result.root.dir,"/BSmooth/", subfolder, "/"),
+							pattern=paste0("_min", min.length, "_max", max.length,".", Window,  ".RData")) 		  
 	   if (length(bfile1[bfile1 %in% bfile2]) == 1){	   					 					
-	   bfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth/", subfolder, "/", 
+	   bfile <- paste0(result.root.dir,"/BSmooth/", subfolder, "/", 
 				  bfile1[bfile1 %in% bfile2])
 	   }else{
 		  bfile <- "null"
 	   }
 
-	   dfile1 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", subfolder, "/"),
+	   dfile1 <- list.files(path=paste0(result.root.dir,"/DSS/", subfolder, "/"),
 							pattern=paste0("oddsByRanking.DSS.n", 
 								sampleSize, ".", cond, ".", num.dmrs, "DMRS.top")) 
-	   dfile2 <- list.files(path=paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", subfolder, "/"),
-							pattern=paste0("_min", min.length, "_max", max.length, ".RData")) 		  
+	   dfile2 <- list.files(path=paste0(result.root.dir,"/DSS/", subfolder, "/"),
+							pattern=paste0("_min", min.length, "_max", max.length, ".", Window, ".RData")) 		  
 	   if (length(dfile1[dfile1 %in% dfile2]) == 1){	   					 					
-	   dfile <- paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS/", subfolder, "/", 
+	   dfile <- paste0(result.root.dir,"/DSS/", subfolder, "/", 
 				  dfile1[dfile1 %in% dfile2])
 	   }else{
 		  dfile <- "null"
@@ -909,7 +762,7 @@ if (length(c1)>0 & length(c2)>0){
     
   pdf(paste0(result.file.prefix, "/", subfolder, "/lengthDistribution.", METHOD, ".n", 
 		   sampleSize, ".", cond, ".", num.dmrs, "DMRS.", "_min",
-		   min.length, "_max", max.length, ".pdf"),
+		   min.length, "_max", max.length,".", Window,  ".pdf"),
 		   height=4, width=7)
 		gp <- ggplot(data=dmrs, aes(log(L))) +
 				geom_density() +
@@ -992,7 +845,7 @@ if (length(c1)>0 & length(c2)>0){
    		
    	pdf(paste0(result.file.prefix, "/", subfolder, "/oddsByRankingPlot.COMPARISON.n", 
 		   sampleSize, ".", cond, ".", num.dmrs, "DMRS.",  "_min",
-		   min.length, "_max", max.length, ".pdf"),
+		   min.length, "_max", max.length,".", Window,  ".pdf"),
 		   height=4, width=7)
 		   
 	if (!fdr){
@@ -1117,7 +970,7 @@ if (length(c1)>0 & length(c2)>0){
    			ggtitle("Proportion of DMRs overlapping the promoter region of a DE gene") + 
    			theme_classic()
    			
-   			CpG.cats <- melt(ranks.last[,c(7:10,17)])
+   			CpG.cats <- reshape2::melt(ranks.last[,c(7:10,17)])
    			colnames(CpG.cats)[2] <- "CpG_Category"
    			
    			p5 <-  ggplot(aes(x=Method, y=value), data=CpG.cats) + 
@@ -1126,7 +979,7 @@ if (length(c1)>0 & length(c2)>0){
    			ggtitle("CpGs in DMRs annotated by CpG category") + 
    			theme_classic()
    			
-   			DE.cats <- melt(ranks.last[,c(11:14,17)])
+   			DE.cats <- reshape2::melt(ranks.last[,c(11:14,17)])
    			colnames(DE.cats)[2] <- "CpG_Category"
    			nchars <- sapply(as.character(DE.cats$CpG_Category), nchar)
    			DE.cats$CpG_Category <- substr(DE.cats$CpG_Category, 1, nchars-2)
@@ -1137,7 +990,7 @@ if (length(c1)>0 & length(c2)>0){
    			ggtitle("Proportion of CpGs (in DMRs) near a DE gene by category & Method") + 
    			theme_classic()
    			
-   			DE.cats <- melt(ranks.all[,c(1,11:14,17)], id=c("ranks", "Method"))
+   			DE.cats <- reshape2::melt(ranks.all[,c(1,11:14,17)], id=c("ranks", "Method"))
    			colnames(DE.cats)[3] <- "CpG_Category"
    			nchars <- sapply(as.character(DE.cats$CpG_Category), nchar)
    			DE.cats$CpG_Category <- substr(DE.cats$CpG_Category, 1, nchars-2)

@@ -1,17 +1,22 @@
 # generate bsseq objects from BED files using the preprocessing script:
 # /n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/cytosineToBSseq_public.R
 
-setwd("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/DATA")
-source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/summarizeResultsFunctions.R")
+source("../summarizeResultsFunctions.R")
 data.file.prefix <- Sys.getenv("DATDIR")
 result.file.prefix <- Sys.getenv("OUTDIR")
+result.root.dir <- Sys.getenv("OUTDIR0")
+expr.file <- Sys.getenv("EXPDAT")
+metilene.path <- Sys.getenv("METPATH")
+print(result.file.prefix) # make sure this is getting set correctly
+print(data.file.prefix)
+print(result.root.dir)
 ifelse(!dir.exists(result.file.prefix), 
 	dir.create(file.path(result.file.prefix)), FALSE)
 	
 library(dmrseq)
 
 args=commandArgs(TRUE)
-# args is now a list of character vectors
+# args is a list of character vectors
 # First check to see if arguments are passed.
 # Then cycle through each element of the list and evaluate the expressions.
   if (length (args) == 0) {
@@ -61,13 +66,21 @@ if (!chromosome == "all"){
 }
 	
 load(paste0(data.file.prefix, time, "_", tiss1, "_all_bsseq_id.RData")); show(bs)
+meta <- pData(bs)
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
 bs_tiss1 <- bs
 rm(bs); gc()
-meta <- pData(bs_tiss1)
 rownames(meta) <- meta$SampleNames
 pData(bs_tiss1) <- meta
 load(paste0(data.file.prefix, time, "_", tiss2, "_all_bsseq_id.RData")); show(bs)
 meta <- pData(bs)
+bs <- BSseq(chr = as.character(seqnames(bs)), pos = start(bs),
+            M =  as.matrix(getCoverage(bs, type = "M")), 
+            Cov = as.matrix(getCoverage(bs, type = "Cov")), 
+            sampleNames=sampleNames(bs))
 rownames(meta) <- meta$SampleNames
 pData(bs) <- meta
 bs <- bsseq::combine(bs, bs_tiss1)
@@ -125,7 +138,9 @@ if (length(tissue1) < sampleSize | length(tissue2) < sampleSize){
 # add "chr" prefix to chromosome names
 chr <- paste0("chr", chr, sep="")
 bs <- BSseq(chr = chr, pos = pos,
-               M = meth.mat, Cov = meth.mat+unmeth.mat, sampleNames = sampleNames(bs),
+               M = as.matrix(meth.mat), 
+               Cov = as.matrix(meth.mat)+as.matrix(unmeth.mat), 
+               sampleNames = sampleNames(bs),
                pData=pData(bs))
 rm(meth.mat)
 rm(unmeth.mat)
@@ -137,7 +152,7 @@ gc()
 print(ls())        
 
 pval.thresh <- 0.05
-num.to.plot <- 500
+num.to.plot <- 50
 genomeName <- "hg38"
 testCovariate="Cond"
 minNumRegion=5
@@ -187,41 +202,42 @@ default <- FALSE
 }else{
 
   if(default){
-    system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison_DEFAULT.R")
-	source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison_DEFAULT.R")
+    system("cat ../BSmooth_DSS_comparison_DEFAULT.R")
+	source("../BSmooth_DSS_comparison_DEFAULT.R")
   }else{
-    system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison.R")
-    source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/BSmooth_DSS_comparison.R")
+    system("cat ../BSmooth_DSS_comparison.R")
+    source("../BSmooth_DSS_comparison.R")
   }
 
 }
 
 if (METHOD == "dmrseq"){
 	# plotting of top 10 exclusive regions for each method
+	# assumes alternative methods have been run in default mode
 	dmrseq <- dmrs
 
-	load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/BSmooth_default/",
+	load(paste0(result.root.dir, "/BSmooth_default/",
 	  "dmrs.BSmooth.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
 	rm(bs.tstat)
 	bsmooth <- dmrs
-	bsmooth$stat <- bsmooth$areaStat #/bsmooth$n
+	bsmooth$stat <- bsmooth$areaStat 
   	bsmooth$beta <- bsmooth$meanDiff
 	bsmooth$indexStart <- bsmooth$idxStart
 	bsmooth$indexEnd <- bsmooth$idxEnd
 	bsmooth$L <- bsmooth$n
 
-	load(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/DSS_default/",
+	load(paste0(result.root.dir, "/DSS_default/",
 	  "dmrs.DSS.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
 	rm(dmlTest.sm)
 	dss <- dmrs
-	dss$stat <- dss$areaStat #/dss$nCG
+	dss$stat <- dss$areaStat 
     dss$beta <- dss$diff.Methy 
 	dss$indexStart <- dss$start
 	dss$indexEnd <- dss$end
 	dss$L <- dss$nCG
 	rm(dmrs)
 		
-	met <- read.table(paste0("/n/irizarryfs01_backed_up/kkorthauer/WGBS/ROADMAP/RESULTS/metilene_default/",
+	met <- read.table(paste0(result.root.dir, "/metilene_default/",
 	  "metilene_output_", gsub(" ", "_", cond), "_n", sampleSize, "_0DMRs.txt"), stringsAsFactors=FALSE)
 	colnames(met) <- c("chr", "start", "end", "qval", "beta", "L", "pval1", 
 	 				"pval2", "mean1", "mean2")
@@ -274,8 +290,8 @@ if (METHOD == "dmrseq"){
 # correlate methylation difference with expression from RNA seq
 
 if (nrow(dmrs) > 0){
- source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/ROADMAP/correlateDMRwithExpr_tx.R")
- system("cat /n/irizarryfs01_backed_up/kkorthauer/WGBS/CODE/ROADMAP/correlateDMRwithExpr_tx.R")
+ source("./correlateDMRwithExpr.R")
+ system("cat ./correlateDMRwithExpr.R")
  
  if (METHOD=="dmrseq"){
     load(paste0(result.file.prefix, "/regions_", cond, "_", 
@@ -283,29 +299,38 @@ if (nrow(dmrs) > 0){
     dmrs <- regions
     rm(regions)
     dmrs$beta <- dmrseq:::meanDiff(bs, dmrs, testCovariate, adjustCovariate=NULL)
-
+  
+  for(win in c("promoter", "genebody", "islandshore")){
  	corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 			   METHOD=METHOD, result.file.prefix, distance=2000, 
-			   pval.thresh=0.05, fdr=TRUE)
+			   pval.thresh=0.05, fdr=TRUE,
+			   expr.file=expr.file, Window=win)
+  }
     dmrs <- dmrs[dmrs$qval < pval.thresh & !is.na(dmrs$qval),]	
     dmrs$beta <- dmrseq:::meanDiff(bs, dmrs, testCovariate, adjustCovariate=NULL)
  }			    
  
  if (METHOD == "metilene"){
+   for(win in c("promoter", "genebody", "islandshore")){
 	   corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 		  METHOD=METHOD, result.file.prefix, distance=2000, 
-		  pval.thresh=0.05, fdr=TRUE)
+		  pval.thresh=0.05, fdr=TRUE,
+		  expr.file=expr.file, Window=win)
+   }
 	   dmrs <- dmrs[dmrs$qval < pval.thresh,]
  }	
  
+for(win in c("promoter", "genebody", "islandshore")){
  corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 			   METHOD=METHOD, result.file.prefix, distance=2000, 
-			   pval.thresh=0.05, default=default, effectSize=TRUE)
+			   pval.thresh=0.05, default=default, effectSize=TRUE,
+			   expr.file=expr.file, Window=win)
   
  corrWithExpression(dmrs, time=time, time2=time2, tiss1=tiss1, tiss2=tiss2, 
 			   METHOD=METHOD, result.file.prefix, distance=2000, 
-			   pval.thresh=0.05, default=default, effectSize=FALSE)
-
+			   pval.thresh=0.05, default=default, effectSize=FALSE,
+			   expr.file=expr.file, Window=win)
+ }
 }else{
 	message("no DMRs found")
 }

@@ -1,4 +1,4 @@
-# code to generate Supplementary Figures S10-12 (Fig 2 subsetted by various factors
+# code to generate Supplementary Figures S12-14 (Fig 2 subsetted by various factors
 
 # source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/CODE/SimulationResults_subset.R")
 
@@ -38,7 +38,7 @@ default <- data.frame(Method = c("dmrseq", "dmrseq", "BSmooth", "BSmooth",
 					  fdr = rep(NA, 8))
 
 ct <- 1
-fnum <- 10
+fnum <- 12
 
 subset.list <- vector("list", 2)
 

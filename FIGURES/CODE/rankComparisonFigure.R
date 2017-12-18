@@ -28,6 +28,7 @@ library(dplyr)
 library(corrplot)
 library(viridis)
 
+
 sampleSize <- 2
 num.dmrs <- 0
 num.to.plot <- 1  #(how many top regions are plotted in the compPlots)
@@ -44,7 +45,6 @@ adjustCovariate=NULL
 genomeName="hg38"
 time <- "roadmap"
 ord <- "stat"
-
 
 for(cond in allConditions){
   
@@ -108,8 +108,8 @@ rm(bs_tiss1); gc()
   str(no.hits)
   nlocs = min(nlocs, (length(bs) - length(no.hits))) # nlocs orig specified in commandarg
   bs = bs[-no.hits][1:nlocs,c(tissue1, tissue2)]
-  meth.mat = getCoverage(bs, type = "M")
-  unmeth.mat = getCoverage(bs, type = "Cov") - meth.mat
+  meth.mat = as.matrix(getCoverage(bs, type = "M"))
+  unmeth.mat = as.matrix(getCoverage(bs, type = "Cov")) - meth.mat
   
   show(bs)
   rm(meth.levels.raw)
@@ -506,8 +506,8 @@ for(cond in allConditions){
   gc()
   
   
-  meth.mat = getCoverage(bs, type = "M")
-  unmeth.mat = getCoverage(bs, type = "Cov") - meth.mat
+  meth.mat = as.matrix(getCoverage(bs, type = "M"))
+  unmeth.mat = as.matrix(getCoverage(bs, type = "Cov")) - meth.mat
   chr = as.character(seqnames(bs))
   pos = start(bs)
   colnames(meth.mat) <- colnames(unmeth.mat) <- pData(bs)$SampleNames
@@ -540,7 +540,7 @@ for(cond in allConditions){
   bsmooth$indexEnd <- bsmooth$idxEnd
   bsmooth$L <- bsmooth$n
   
-  load(paste0(dn.result.dir, "/RESULTS/DSS_default/",
+  load(paste0(dn.result.dir, "/DSS_default/",
               "dmrs.DSS.n", sampleSize, ".", cond, ".DEFAULT.Rdata"))
   rm(dmlTest.sm)
   dss <- dmrs

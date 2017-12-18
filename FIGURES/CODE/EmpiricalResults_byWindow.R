@@ -1,4 +1,4 @@
-# Code to generate Figure 3, Supplementary Figures S6-S9
+# Code to generate Figure 3, Supplementary Figures S6-S11
 
 # source("/n/irizarryfs01_backed_up/kkorthauer/WGBS/PAPER/FIGURES/CODE/EmpiricalResults_byWindow.R")
 
@@ -411,12 +411,17 @@ for(cond in allConditions){
    ranks.all$fdr <- as.factor(ranks.all$fdr)
    minx <- min(ranks.all$ranks)
       
+   # make ribbons extend only as far as plot boundaries
+   plotlims <- c(2^-0.065, 2^3)
+   ranks.all$CI.low <- pmax(ranks.all$CI.low, plotlims[1])  
+   ranks.all$CI.hi  <- pmin(ranks.all$CI.hi, plotlims[2])
+      
    fdr[[ct]] <- ggplot(aes(x=ranks, y=odds), 
 					 data=ranks.all) + 
 	   geom_ribbon(aes(ymin=CI.low, ymax=CI.hi, fill=Method),
 			alpha=0.3) +
 	   geom_line(aes(group=Method, color=Method, linetype=fdr), lwd=1.1) +
-	   scale_y_continuous(trans="log2", limits=c(2^-0.065, 2^3.2),
+	   scale_y_continuous(trans="log2", limits=plotlims,
 	                      breaks=c(1,2,4,8,16)) +
 	   xlab("FDR threshold (square root scaled)") +
 	   ylab("Odds") +
@@ -468,14 +473,14 @@ legend <- get_legend(covg[[1]] +
 top.title <- ggdraw() + draw_label(paste0(labs[1]), x=0.003, hjust=0, 
 								fontface="bold")
 
-pdf(paste0(result.file.prefix, "/supp_fig6.", win, ".pdf"),
-  height=16, width=16)
-	p <- plot_grid( p1, p2, rel_widths = c(2,1.3), nrow=1)
-	p <- plot_grid( top.title, p, legend, nrow=3, rel_heights = c(0.02,1,0.025), hjust=0)
-	print(p)
-dev.off()
-
-
+if (win=="islandshore"){
+  pdf(paste0(result.file.prefix, "/supp_fig6.pdf"),
+    height=16, width=16)
+	  p <- plot_grid( p1, p2, rel_widths = c(2,1.3), nrow=1)
+	  p <- plot_grid( top.title, p, legend, nrow=3, rel_heights = c(0.02,1,0.025), hjust=0)
+	  print(p)
+  dev.off()
+}
 
 p1 <- plot_grid(grob.dmrseq[[1]] + theme(legend.position="none", plot.title =element_text(size=8.25), axis.title.x=element_blank()), 
 				grob.bsmooth[[1]] + theme(legend.position="none", plot.title =element_text(size=8.25), axis.title.x=element_blank()), 
@@ -515,12 +520,13 @@ legend <- suppressMessages(get_legend(grob.dmrseq[[1]] +
                 	  legend.text=element_text(size=13))))
 top.title <- ggdraw() + draw_label(paste0(labs[1]), 
 							x=0.003, hjust=-0.027, vjust=0.2, fontface="bold")
-				
-pdf(paste0(result.file.prefix, "/supp_fig7.", win, ".pdf"), 
-  height=18.333, width=17)
-	p <- plot_grid( top.title, p1, nrow=2, rel_heights = c(0.036,1))
-	p <- plot_grid( p, legend, rel_heights = c(3,0.06), nrow=2)
-	p <- p  + draw_label("dmrseq", x = 0.16, y = 0.973,
+
+if (win=="islandshore"){				
+  pdf(paste0(result.file.prefix, "/supp_fig7.pdf"), 
+      height=18.333, width=17)
+	  p <- plot_grid( top.title, p1, nrow=2, rel_heights = c(0.036,1))
+	  p <- plot_grid( p, legend, rel_heights = c(3,0.06), nrow=2)
+	  p <- p  + draw_label("dmrseq", x = 0.16, y = 0.973,
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold') +
             draw_label("BSmooth", x = 0.412, y = 0.973,
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold') +
@@ -528,9 +534,9 @@ pdf(paste0(result.file.prefix, "/supp_fig7.", win, ".pdf"),
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold') +
             draw_label("metilene", x = 0.908, y = 0.973,
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold')
-	print(p)
-dev.off()   
-
+  	print(p)
+  dev.off()   
+}
 
 p1 <- plot_grid( fdr[[1]] + theme(legend.position="none", 
 					plot.title = element_text(size = 12)), 
@@ -560,7 +566,6 @@ p <- plot_grid(top.title, p1, legend, rel_heights = c(0.2,3,0.06), nrow=3)
 
 p1.fdr.rm <- plot_grid(top.title2, p1, rel_heights = c(0.2,3), nrow=2) 
 
-}
 
 ############################################################################ 
 ############################################################################ 
@@ -571,8 +576,6 @@ p1.fdr.rm <- plot_grid(top.title2, p1, rel_heights = c(0.2,3), nrow=2)
 ############################################################################ 
 ############################################################################ 
 ############################################################################ 
-
-for(win in c("promoter", "genebody", "islandshore")){
 
 sampleSize <- 2
 num.dmrs <- 0
@@ -955,8 +958,11 @@ for(cond in allConditions){
    ranks.all$fdr <- as.factor(ranks.all$fdr)
    minx <- min(ranks.all$ranks)
    
-   ll <- 2^-1
-   if (win=="genebody"){ ll <- 2^-0.5}   
+   
+   plotlims <- c(2^-0.5, 2^3)
+   ranks.all$CI.low <- pmax(ranks.all$CI.low, plotlims[1])  
+   ranks.all$CI.hi  <- pmin(ranks.all$CI.hi, plotlims[2])
+ 
    fdr[[ct]] <- ggplot(aes(x=ranks, y=odds), 
                        data=ranks.all) + 
      geom_ribbon(aes(ymin=CI.low, ymax=CI.hi, fill=Method),
@@ -970,7 +976,7 @@ for(cond in allConditions){
      guides(linetype=FALSE)  +
      scale_colour_colorblind() +
      scale_fill_colorblind() +
-     scale_y_continuous(trans="log2", limits=c(ll, 2^3),
+     scale_y_continuous(trans="log2", limits=plotlims,
 	                      breaks=c(0.5, 1,2,4,8,16)) 
   	  
   ct <- ct + 1
@@ -1002,13 +1008,14 @@ legend <- get_legend(covg[[1]] +
                 	  legend.text=element_text(size=13)))
 top.title <- ggdraw() + draw_label(paste0(labs[1]), x=0.003, hjust=0, fontface="bold")
 
-pdf(paste0(result.file.prefix, "/supp_fig8.", win, ".pdf"),
-  height=9.6, width=16)
-	p <- plot_grid( p1, p2, rel_widths = c(2,1.3), nrow=1)
-	p <- plot_grid( top.title, p, legend, nrow=3, rel_heights = c(0.04,1,0.04), hjust=0)
-	print(p)
-dev.off()
-   
+if (win=="islandshore"){
+  pdf(paste0(result.file.prefix, "/supp_fig8.pdf"),
+      height=9.6, width=16)
+	  p <- plot_grid( p1, p2, rel_widths = c(2,1.3), nrow=1)
+	  p <- plot_grid( top.title, p, legend, nrow=3, rel_heights = c(0.04,1,0.04), hjust=0)
+	  print(p)
+  dev.off()
+}  
 
 p1 <- plot_grid(grob.dmrseq[[1]] + theme(legend.position="none", plot.title =element_text(size=9), axis.title.x=element_blank()), 
 				grob.bsmooth[[1]] + theme(legend.position="none", plot.title =element_text(size=9), axis.title.x=element_blank()), 
@@ -1040,11 +1047,12 @@ legend <- suppressMessages(get_legend(grob.dmrseq[[1]] +
 top.title <- ggdraw() + draw_label(paste0(labs[1]), 
 							x=0.003, hjust=-0.027, vjust=0.2, fontface="bold")
 				
-pdf(paste0(result.file.prefix, "/supp_fig9.", win, ".pdf"),
-  height=11, width=17)
-	p <- plot_grid( top.title, p1, nrow=2, rel_heights = c(0.05,1))
-	p <- plot_grid( p, legend, rel_heights = c(3,0.1), nrow=2)
-	p <- p  + draw_label("dmrseq", x = 0.151, y = 0.965,
+if (win=="islandshore"){				
+  pdf(paste0(result.file.prefix, "/supp_fig9.pdf"),
+    height=11, width=17)
+	  p <- plot_grid( top.title, p1, nrow=2, rel_heights = c(0.05,1))
+	  p <- plot_grid( p, legend, rel_heights = c(3,0.1), nrow=2)
+	  p <- p  + draw_label("dmrseq", x = 0.151, y = 0.965,
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold') +
             draw_label("BSmooth", x = 0.405, y = 0.965,
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold') +
@@ -1052,9 +1060,9 @@ pdf(paste0(result.file.prefix, "/supp_fig9.", win, ".pdf"),
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold') +
             draw_label("metilene", x = 0.905, y = 0.965,
             	vjust = 1, hjust = 1, size = 14, fontface = 'bold')
-	print(p)
-dev.off()   
-
+	  print(p)
+  dev.off()   
+}
 
 p1 <- plot_grid( fdr[[1]] + theme(legend.position="none"),
 				 fdr[[2]]+ theme(legend.position="none", 
@@ -1077,10 +1085,22 @@ p.fdr.m <- plot_grid(top.title2, p1, legend, rel_heights = c(0.2,1.5,0.12), nrow
 
 
 p1 <- plot_grid(p1.fdr.rm, p.fdr.m, nrow=2, rel_heights=c(7, 3.75))
-	          
-pdf(paste0(result.file.prefix, "/fig3.", win, ".pdf"),
-  height=10.75, width=9)
-	print(p1)
-dev.off()   
+
+if (win=="islandshore"){	          
+  pdf(paste0(result.file.prefix, "/fig3.pdf"),
+    height=10.75, width=9)
+	  print(p1)
+  dev.off()   
+}else if(win=="promoter"){
+  pdf(paste0(result.file.prefix, "/supp_fig10.pdf"),
+    height=10.75, width=9)
+	  print(p1)
+  dev.off()
+}else if(win=="genebody"){
+  pdf(paste0(result.file.prefix, "/supp_fig11.pdf"),
+    height=10.75, width=9)
+	  print(p1)
+  dev.off()
+}
    
 }

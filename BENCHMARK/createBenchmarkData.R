@@ -142,8 +142,10 @@ for (sampleSize in c(2,3)){
    DC <- chrSelectBSseq(DC, seqnames = paste0("chr", c(seq(1,22))), order = TRUE)
 
    # filter loci by coverage
-   DC <- filterLoci(DC, minCoverage = 1, numSamples="all")
+   loci.idx <- which(rowSums(getCoverage(DC, type="Cov")==0) == 0)
+   DC <- DC[loci.idx,]
    show(DC)
+
  
    # simulate DMRS - see simDMRs documentation for details on output format
    simDC <- simDMRs(bs=DC, num.dmrs=num.dmrs)

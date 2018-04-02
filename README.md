@@ -1,6 +1,6 @@
 # Scripts for dmrseq Paper
 
-This repository contains the code to reproduce the analyses and figures in "Detection and accurate False Discovery Rate control of differentially methylated regions from Whole Genome Bisulfite Sequencing", beginning with preprocessing steps, through the analyses with `dmrseq` and other tools used in the comparisons, and generation of figures in the main text and supplement.
+This repository contains the code to reproduce the analyses and figures in "Detection and accurate False Discovery Rate control of differentially methylated regions from Whole Genome Bisulfite Sequencing", beginning with preprocessing steps, through the analyses with `dmrseq` and other tools used in the comparisons, and generation of figures in the main text and supplement. These scripts rely on the package dmrseq from [github](https://github.com/kdkorthauer/dmrseq/tree/01b82b69654755e5b991041ac6279fb68757fa75) (commit `01b82b69654755e5b991041ac6279fb68757fa75` on December 12, 2017).
 
 The directory contains three folders:
 
